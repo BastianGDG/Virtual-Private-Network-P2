@@ -7,7 +7,6 @@ import struct
 import subprocess
 import asyncio
 from scapy.all import IP
-from wrapunwrap import wrap_packet
 
 #Indstast Host server IP herunder
 HOST = "10.133.16.147"
@@ -138,6 +137,10 @@ async def unwrap_packet(reader):
 
     packet = await reader.readexactly(size)
     return packet
+
+def wrap_packet(packet_bytes):
+    length = len(packet_bytes)
+    return struct.pack("!I", length) + packet_bytes
 
 async def main():
     reader, writer = await asyncio.open_connection(HOST, PORT)

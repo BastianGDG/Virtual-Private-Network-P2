@@ -7,7 +7,6 @@ import fcntl
 import select
 from scapy.all import IP
 import subprocess
-from wrapunwrap import wrap_packet
 
 # Define host as 0.0.0.0 so that it automatically becomes the server's current IP
 HOST = "0.0.0.0"
@@ -132,6 +131,10 @@ async def unwrap_packet(reader):
 
     packet = await reader.readexactly(size)
     return packet
+
+def wrap_packet(packet_bytes):
+    length = len(packet_bytes)
+    return struct.pack("!I", length) + packet_bytes
 
 async def main():
     # Start the async server
