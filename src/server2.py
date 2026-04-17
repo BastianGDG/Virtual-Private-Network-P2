@@ -24,6 +24,8 @@ TUN = os.open("/dev/net/tun", os.O_RDWR)
 ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
 fcntl.ioctl(TUN, TUNSETIFF, ifr)
 
+os.set_blocking(TUN,False)
+
 print("TUN interface oprettet: tun0")
 
 subprocess.run(["ip","addr","add","10.0.0.1/24","dev","tun0"])

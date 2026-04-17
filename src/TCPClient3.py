@@ -10,7 +10,7 @@ from scapy.all import IP
 from wrapunwrap import wrap_packet
 
 #Indstast Host server IP herunder
-HOST = "192.168.1.177"
+HOST = "10.133.16.147"
 PORT = 6789
 choice = 0
 
@@ -87,8 +87,9 @@ async def send_packets(reader, writer):
     TUNSETIFF = 0x400454ca
     IFF_TUN = 0x0001
     IFF_NO_PI = 0x1000
+
     REAL_INTERFACE = "eth0"
-    REAL_GATEWAY = "192.168.1.1"
+    REAL_GATEWAY = "10.133.16.26"
 
     tun = os.open("/dev/net/tun", os.O_RDWR)
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
