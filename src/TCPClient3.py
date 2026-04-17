@@ -94,15 +94,15 @@ async def send_packets(reader, writer):
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
     fcntl.ioctl(tun, TUNSETIFF, ifr)
 
-    subprocess.run(["ip", "addr", "add", "10.0.0.2/24", "dev", "tun0"], check=True)
-    subprocess.run(["ip", "link", "set", "tun0", "up"], check=True)
+    subprocess.run(["ip", "addr", "add", "10.0.0.2/24", "dev", "tun0"])
+    subprocess.run(["ip", "link", "set", "tun0", "up"])
     time.sleep(1) 
 
-    subprocess.run(["ip", "route", "replace", HOST, "via", REAL_GATEWAY, "dev", REAL_INTERFACE], check=True)
-    subprocess.run(["sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"], check=True)
+    subprocess.run(["ip", "route", "replace", HOST, "via", REAL_GATEWAY, "dev", REAL_INTERFACE])
+    subprocess.run(["sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"])
 
-    subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"], check=True)
-    subprocess.run(["ip", "route", "replace", "128.0.0.0/1", "dev", "tun0"], check=True)
+    subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"])
+    subprocess.run(["ip", "route", "replace", "128.0.0.0/1", "dev", "tun0"])
 
     loop = asyncio.get_running_loop()
 
