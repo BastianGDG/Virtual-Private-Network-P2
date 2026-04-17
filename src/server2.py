@@ -135,6 +135,10 @@ async def unwrap_packet(reader):
     packet = await reader.readexactly(size)
     return packet
 
+def wrap_packet(packet_bytes):
+    length = len(packet_bytes)
+    return struct.pack("!I", length) + packet_bytes
+
 async def main():
     server = await asyncio.start_server(handle_client, HOST, PORT)
     addr = server.sockets[0].getsockname()
