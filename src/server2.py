@@ -39,16 +39,22 @@ subprocess.run(["sudo","iptables","-A","FORWARD","-i","eth0","-o","tun0","-j","A
 
 # socket til TUN
 async def socket_to_tun(reader):
+    i = 0
     while True:
-        packet = await unwrap_packet(reader)
+        if i <= 3:
+            i += 1
+            continue
+        else:
+            packet = await unwrap_packet(reader)
 
-        if not packet:
-            print("Client disconnected")
-            break
+            if not packet:
+                print("Client disconnected")
+                break
         
-        print(f"Skriver {len(packet)} bytes til TUN", flush=True)
-        os.write(TUN, packet)
-        print("til TUN")
+            print(f"Skriver {len(packet)} bytes til TUN", flush=True)
+            os.write(TUN, packet)
+            print("til TUN")
+            i += 1
 
 
 # TUN til socket
@@ -58,7 +64,7 @@ async def tun_to_socket(writer):
     while True:
         packet = await loop.run_in_executor(None, os.read, TUN, 2048)
 
-        writer.write(wrap_packet(packet))
+        writer.write(await wrap_packet(packet))
         await writer.drain()
         print("til socket")
 
@@ -128,12 +134,12 @@ async def key_exchange(reader, writer, addr):
 async def unwrap_packet(reader):
     try:
         raw_len = await reader.readexactly(4)
+        size = struct.unpack("!I", raw_len)[0]
+        print (f"size is {size}")
+        packet = await reader.readexactly(size)
+        return packet
     except:
-        pass
-    size = struct.unpack("!I", raw_len)[0]
-    print (f"size is {size}")
-    packet = await reader.readexactly(size)
-    return packet
+        return None
 
 async def wrap_packet(packet_bytes):
     length = len(packet_bytes)
