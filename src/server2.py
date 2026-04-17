@@ -7,6 +7,7 @@ import fcntl
 import select
 from scapy.all import IP
 import subprocess
+from wrapunwrap import wrap_packet
 
 HOST = "0.0.0.0"
 PORT = 6789
@@ -34,21 +35,15 @@ subprocess.run(["sudo","iptables","-A","FORWARD","-i","eth0","-o","tun0","-j","A
 print("[DEBUG SERVER] Netværkskonfiguration og iptables regler anvendt.")
 
 async def socket_to_tun(reader):
-    i = 0
     while True:
         try:
             packet = await unwrap_packet(reader)
-
             if not packet:
                 break
-            
-            print(f"[DEBUG SERVER] socket_to_tun: Fik pakke på {len(packet)} bytes fra socket. Skriver til TUN...")
             os.write(TUN, packet)
         except asyncio.IncompleteReadError as e:
-            print(f"[DEBUG SERVER FEJL] socket_to_tun: IncompleteReadError - {e}")
             break
         except Exception as e:
-            print(f"[DEBUG SERVER FEJL] socket_to_tun: {e}")
             break
 
 async def tun_to_socket(writer):
@@ -60,7 +55,6 @@ async def tun_to_socket(writer):
             writer.write(wrapped)
             await writer.drain()
         except Exception as e:
-            print(f"[DEBUG SERVER FEJL] tun_to_socket: {e}")
             break
 
 async def handle_client(reader, writer):
@@ -70,6 +64,7 @@ async def handle_client(reader, writer):
         while True:
             data = await reader.read(1024)
             if not data:
+                print("[DEBUG SERVER] handle_client: Modtog 0 bytes, client har lukket forbindelsen.")
                 break
                 
             msg = data.decode("utf-8", errors="ignore")
@@ -86,16 +81,19 @@ async def handle_client(reader, writer):
             elif len(data) > 4:
                 length = struct.unpack("!I", data[:4])[0]
                 
+                # ADVARSEL: Dette er et sted hvor tingene ofte går galt i dit nuværende setup!
+                # Hvis længen af pakken er større end det data vi læste (1024), mangler vi resten af pakken.
                 first_packet = data[4:4+length]
                 os.write(TUN, first_packet)
-
                 await asyncio.gather(
                     socket_to_tun(reader),
                     tun_to_socket(writer)
                 )
+                print("[DEBUG SERVER] handle_client: TUN loops er afsluttet.")
                 break 
             else:
-                pass
+                print(f"[DEBUG SERVER] handle_client: Modtog meget kort/ukendt data: {data}")
+                
     except Exception as e:
         print(f"[DEBUG SERVER FEJL] i handle_client: {e}")
     finally:
@@ -132,12 +130,9 @@ async def key_exchange(reader, writer, addr):
 async def unwrap_packet(reader):
     raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
+
     packet = await reader.readexactly(size)
     return packet
-
-def wrap_packet(packet_bytes):
-    length = len(packet_bytes)
-    return struct.pack("!I", length) + packet_bytes
 
 async def main():
     server = await asyncio.start_server(handle_client, HOST, PORT)

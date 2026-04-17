@@ -7,9 +7,10 @@ import struct
 import subprocess
 import asyncio
 from scapy.all import IP
+from wrapunwrap import wrap_packet
 
 # HUSK AT TJEKKE DENNE IP IGEN
-HOST = "87.61.79.148" 
+HOST = "192.168.1.170" 
 PORT = 6789
 
 async def handle_connection(reader, writer):
@@ -34,6 +35,7 @@ async def handle_connection(reader, writer):
             elif choice == 2:
                 await keyExchange(reader, writer)
             elif choice == 3:
+                print("[DEBUG CLIENT] Valg 3: Starter VPN tunneling...")
                 await send_packets(reader, writer)
             elif choice == 4:
                 break
@@ -50,6 +52,7 @@ async def handle_connection(reader, writer):
         await writer.wait_closed()
 
 async def pingTest(reader, writer):
+    print("[DEBUG CLIENT] Starter ping test...")
     start = time.perf_counter()
     writer.write("Ping!".encode("utf-8"))
     await writer.drain()
@@ -59,7 +62,7 @@ async def pingTest(reader, writer):
 
     if pong:
         end = time.perf_counter()
-        ping = int((end - start) * 1000) 
+        ping = int((end - start) * 1000)
         print(f"[DEBUG CLIENT] Modtog: {pong}. Din ping er {ping} ms")
     else:
         print("[DEBUG CLIENT FEJL] Kunne ikke modtage pong!")
@@ -69,7 +72,7 @@ async def keyExchange(reader, writer):
     sentence = "Key request"
     writer.write(sentence.encode("utf-8"))
     await writer.drain()
- 
+    
     p_bytes = await reader.read(1024)
     p = p_bytes.decode("utf-8")
     g_bytes = await reader.read(1024)
@@ -90,12 +93,12 @@ async def keyExchange(reader, writer):
     print(f"[DEBUG CLIENT] Key exchange succes! Shared Key: {K}")
 
 async def send_packets(reader, writer):
+    print("[DEBUG CLIENT] Sætter TUN interface op lokalt...")
     TUNSETIFF = 0x400454ca
     IFF_TUN = 0x0001
     IFF_NO_PI = 0x1000
-
     REAL_INTERFACE = "eth0"
-    REAL_GATEWAY = "10.133.16.26"
+    REAL_GATEWAY = "192.168.1.1"
 
     tun = os.open("/dev/net/tun", os.O_RDWR)
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
@@ -106,28 +109,26 @@ async def send_packets(reader, writer):
     subprocess.run(["ip", "link", "set", "tun0", "up"], check=True)
     time.sleep(1) 
 
-    # SKIFT MELLEM LINJERNE AN PÅ OM DET ER LOKAL ELLER GLOBAL:
-
-    subprocess.run(["ip", "route", "replace", HOST, "via", REAL_GATEWAY, "dev", REAL_INTERFACE], check=True) # Global
-#   subprocess.run(["ip", "route", "replace", HOST, "dev", REAL_INTERFACE], check=True) # Lokal
-
+    # BRUG FORSKELLIGE LINJER AN PÅ OM DET ER GLOBAL ELLER LOKAL:
+    subprocess.run(["ip", "route", "replace", HOST, "dev", REAL_INTERFACE], check=True) # Lokal
+#   subprocess.run(["ip", "route", "replace", HOST, "via", REAL_GATEWAY, "dev", REAL_INTERFACE], check=True) # Global
     subprocess.run(["sudo", "sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"], check=True)
 
-    subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"])
-    subprocess.run(["ip", "route", "replace", "128.0.0.0/1", "dev", "tun0"])
+    subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"], check=True)
+    subprocess.run(["ip", "route", "replace", "128.0.0.0/1", "dev", "tun0"], check=True)
+    print("[DEBUG CLIENT] Routing sat op. Al trafik bør nu pege på tun0.")
 
     loop = asyncio.get_running_loop()
 
     async def read_tun():
+        print("[DEBUG CLIENT] 'read_tun' loop startet. Lytter efter udgående trafik på TUN...")
         while True:
             try:
                 packet = await loop.run_in_executor(None, os.read, tun, 2048)
-                
                 wrapped = wrap_packet(packet)
                 writer.write(wrapped)
                 await writer.drain()
             except Exception as e:
-                print(f"[DEBUG CLIENT FEJL] read_tun: {e}")
                 break
     
     async def write_tun():
@@ -137,9 +138,14 @@ async def send_packets(reader, writer):
                 if not packet:
                     break
                 await loop.run_in_executor(None, os.write, tun, packet)
+                try: 
+                    ip = IP(packet[:20]) 
+                    print(f"[DEBUG CLIENT] (Scapy) Pakke-info: {ip.src} -> {ip.dst}")
+                except: 
+                    pass
             except Exception as e:
-                print(f"[DEBUG CLIENT FEJL] write_tun: {e}")
                 break
+
     try:
         await asyncio.gather(read_tun(), write_tun())
     except asyncio.CancelledError:
@@ -148,12 +154,9 @@ async def send_packets(reader, writer):
 async def unwrap_packet(reader):
     raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
+
     packet = await reader.readexactly(size)
     return packet
-
-def wrap_packet(packet_bytes):
-    length = len(packet_bytes)
-    return struct.pack("!I", length) + packet_bytes
 
 async def main():
     print("[DEBUG CLIENT] Starter main...")
