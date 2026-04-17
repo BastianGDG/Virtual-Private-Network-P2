@@ -1,3 +1,4 @@
+import queue
 import random
 from Crypto.Util import number
 import asyncio
@@ -23,7 +24,7 @@ TUN = os.open("/dev/net/tun", os.O_RDWR)
 ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
 fcntl.ioctl(TUN, TUNSETIFF, ifr)
 
-os.set_blocking(TUN,False)
+os.set_blocking(TUN,True)
 
 print("TUN interface oprettet: tun0")
 
@@ -62,22 +63,38 @@ async def tun_to_socket(writer):
         await writer.drain()
         print("til socket")
 
-
 async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
     print(f"Client connected: {addr}")
+    
     try:
-        await asyncio.gather(
-        socket_to_tun(reader),
-        tun_to_socket(writer)
-        )
-    except asyncio.IncompleteReadError:
-        print(f"Client disconnected: {addr}")
+        while True:
+            # Read a small command first
+            data = await reader.read(1024)
+            if not data: break
+            
+            msg = data.decode("utf-8", errors="ignore")
+            
+            if "Ping!" in msg:
+                writer.write("Pong!".encode("utf-8"))
+                await writer.drain()
+                
+            elif "Key request" in msg:
+                await key_exchange(reader, writer, addr)
+                
+            elif "Start Tunnel" in msg:
+                # ONLY NOW do we enter the packet forwarding loops
+                print("Starting VPN Tunneling...")
+                await asyncio.gather(
+                    socket_to_tun(reader),
+                    tun_to_socket(writer)
+                )
+                break # Exit the command loop once tunnel starts
+                
     except Exception as e:
-        print(f"Fejl i handle_client: {e}")
+        print(f"Error: {e}")
     finally:
         writer.close()
-        await writer.wait_closed()
 
 async def key_exchange(reader, writer, addr):
     print(f"Starting key exchange with {addr}...")
@@ -126,16 +143,13 @@ async def key_exchange(reader, writer, addr):
     print(f"Shared secret key K for {addr}:", K)
 
 async def unwrap_packet(reader):
-    try:
-        raw_len = await reader.readexactly(4)
-    except:
-        pass
+    raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
-    print (f"size is {size}")
+
     packet = await reader.readexactly(size)
     return packet
 
-async def wrap_packet(packet_bytes):
+def wrap_packet(packet_bytes):
     length = len(packet_bytes)
     return struct.pack("!I", length) + packet_bytes
 
