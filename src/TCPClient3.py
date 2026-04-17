@@ -7,9 +7,10 @@ import struct
 import subprocess
 import asyncio
 from scapy.all import IP
+from wrapunwrap import wrap_packet
 
 #Indstast Host server IP herunder
-HOST = "10.133.16.218"
+HOST = "192.168.1.177"
 PORT = 6789
 choice = 0
 
@@ -86,42 +87,56 @@ async def send_packets(reader, writer):
     TUNSETIFF = 0x400454ca
     IFF_TUN = 0x0001
     IFF_NO_PI = 0x1000
-   
+    REAL_INTERFACE = "eth0"
+    REAL_GATEWAY = "192.168.1.1"
+
     tun = os.open("/dev/net/tun", os.O_RDWR)
-    
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
     fcntl.ioctl(tun, TUNSETIFF, ifr)
 
-    subprocess.run(["sudo","ip","addr","add","10.0.0.2/24","dev","tun0"])
-    subprocess.run(["sudo","ip","link","set","tun0","up"])
-    subprocess.run(["sudo","ip","route","add","10.0.0.2/24","dev","tun0"])
+    subprocess.run(["ip", "addr", "add", "10.0.0.2/24", "dev", "tun0"], check=True)
+    subprocess.run(["ip", "link", "set", "tun0", "up"], check=True)
+    time.sleep(1) 
 
-    print("TUN interface oprettet: tun0") 
-    
+    subprocess.run(["ip", "route", "replace", HOST, "via", REAL_GATEWAY, "dev", REAL_INTERFACE], check=True)
+    subprocess.run(["sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"], check=True)
+
+    subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"], check=True)
+    subprocess.run(["ip", "route", "replace", "128.0.0.0/1", "dev", "tun0"], check=True)
+
     loop = asyncio.get_running_loop()
 
-    async def Readtun():
+    async def read_tun():
         while True:
             packet = await loop.run_in_executor(None, os.read, tun, 2048)
-            #print("Fik packet:", packet[:20])
-            writer.write(packet)
+            writer.write(wrap_packet(packet))
+            print(f"DEBUG: Sender pakke til socket: {len(packet)} bytes") 
+            # print("Fik packet:", packet[:20])
             await writer.drain()
     
-    async def writetun():
+    async def write_tun():
         while True:
-                data = await reader.read(2048)
-                try:
-                    ip = IP(data[:20])
-                    ip.show()
-                except:
-                    pass
-                if not data:
-                    break
-                await loop.run_in_executor(None, os.write, tun, data)
+            packet = await unwrap_packet(reader)
+            try: 
+                ip = IP(packet[:20]) 
+                ip.show() 
+            except: 
+                pass
+            if not packet:
+                break
+            await loop.run_in_executor(None, os.write, tun, packet)
+
     try:
-        await asyncio.gather(Readtun(), writetun())
+        await asyncio.gather(read_tun(), write_tun())
     except asyncio.CancelledError:
         pass
+
+async def unwrap_packet(reader):
+    raw_len = await reader.readexactly(4)
+    size = struct.unpack("!I", raw_len)[0]
+
+    packet = await reader.readexactly(size)
+    return packet
 
 async def main():
     reader, writer = await asyncio.open_connection(HOST, PORT)

@@ -7,6 +7,7 @@ import fcntl
 import select
 from scapy.all import IP
 import subprocess
+from wrapunwrap import wrap_packet
 
 # Define host as 0.0.0.0 so that it automatically becomes the server's current IP
 HOST = "0.0.0.0"
@@ -27,21 +28,25 @@ print("TUN interface oprettet: tun0")
 
 subprocess.run(["ip","addr","add","10.0.0.1/24","dev","tun0"])
 subprocess.run(["ip","link","set","tun0","up"])
-subprocess.run(["sudo", "ip", "route", "add", HOST, "via", "10.133.16.26"])
 subprocess.run(["sudo","iptables", "-t", "nat", "-A","POSTROUTING","-o","eth0","-j","MASQUERADE"])
 subprocess.run(["sudo","sysctl","-w","net.ipv4.ip_forward=1"])
 subprocess.run(["sudo","sysctl","-w","net.ipv6.conf.all.forwarding=1"])
 
-# socket → TUN
+# Nye commands
+subprocess.run(["sudo","iptables","-A","FORWARD","-i","tun0","-o","eth0","-j","ACCEPT"])
+subprocess.run(["sudo","iptables","-A","FORWARD","-i","eth0","-o","tun0","-j","ACCEPT"])
+
+# socket til TUN
 async def socket_to_tun(reader):
     while True:
-        data = await reader.read(2048)
+        packet = await unwrap_packet(reader)
 
-        if not data:
+        if not packet:
             print("Client disconnected")
             break
-
-        os.write(TUN, data)
+        
+        print(f"Skriver {len(packet)} bytes til TUN", flush=True)
+        os.write(TUN, packet)
         print("til TUN")
 
 
@@ -52,7 +57,7 @@ async def tun_to_socket(writer):
     while True:
         packet = await loop.run_in_executor(None, os.read, TUN, 2048)
 
-        writer.write(packet)
+        writer.write(wrap_packet(packet))
         await writer.drain()
         print("til socket")
 
@@ -62,16 +67,37 @@ async def handle_client(reader, writer):
     print(f"Client connected: {addr}")
 
     try:
-        await asyncio.gather(
-            socket_to_tun(reader),
-            tun_to_socket(writer)
-        )
+        while True:
+            data = await reader.read(1024)
+            if not data:
+                break
+                
+            msg = data.decode("utf-8", errors="ignore")
+            
+            if "Ping!" in msg:
+                print(f"Ping modtaget fra {addr}")
+                writer.write("Pong!".encode("utf-8"))
+                await writer.drain()
+            
+            elif "Key request" in msg:
+                await key_exchange(reader, writer, addr)
+                
+            elif len(data) > 4:                
+                length = struct.unpack("!I", data[:4])[0]
+                first_packet = data[4:4+length]
+                os.write(TUN, first_packet)
+
+                await asyncio.gather(
+                    socket_to_tun(reader),
+                    tun_to_socket(writer)
+                )
+                break 
+                
     except Exception as e:
-        print("Error:", e)
+        print(f"Fejl i handle_client: {e}")
     finally:
         writer.close()
         await writer.wait_closed()
-        print("Client closed")
 
 async def key_exchange(reader, writer, addr):
     print(f"Starting key exchange with {addr}...")
@@ -119,6 +145,12 @@ async def key_exchange(reader, writer, addr):
     K = int(B)**a % p
     print(f"Shared secret key K for {addr}:", K)
 
+async def unwrap_packet(reader):
+    raw_len = await reader.readexactly(4)
+    size = struct.unpack("!I", raw_len)[0]
+
+    packet = await reader.readexactly(size)
+    return packet
 
 async def main():
     # Start the async server
