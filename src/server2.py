@@ -24,7 +24,7 @@ TUN = os.open("/dev/net/tun", os.O_RDWR)
 ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
 fcntl.ioctl(TUN, TUNSETIFF, ifr)
 
-os.set_blocking(TUN,False)
+os.set_blocking(TUN,True)
 
 print("TUN interface oprettet: tun0")
 
@@ -67,34 +67,13 @@ async def tun_to_socket(writer):
 async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
     print(f"Client connected: {addr}")
-
     try:
-        while True:
-            data = await reader.read(1024)
-            if not data:
-                break
-                
-            msg = data.decode("utf-8", errors="ignore")
-            
-            if "Ping!" in msg:
-                print(f"Ping modtaget fra {addr}")
-                writer.write("Pong!".encode("utf-8"))
-                await writer.drain()
-            
-            elif "Key request" in msg:
-                await key_exchange(reader, writer, addr)
-                
-            elif len(data) > 4:                
-                length = struct.unpack("!I", data[:4])[0]
-                first_packet = data[4:4+length]
-                os.write(TUN, first_packet)
-
-                await asyncio.gather(
-                    socket_to_tun(reader),
-                    tun_to_socket(writer)
-                )
-                break 
-                
+        await asyncio.gather(
+        socket_to_tun(reader),
+        tun_to_socket(writer)
+        )
+    except asyncio.IncompleteReadError:
+        print(f"Client disconnected: {addr}")
     except Exception as e:
         print(f"Fejl i handle_client: {e}")
     finally:
