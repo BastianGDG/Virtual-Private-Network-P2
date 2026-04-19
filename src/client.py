@@ -1,4 +1,3 @@
-import socket
 import random
 import time
 import os
@@ -7,11 +6,10 @@ import struct
 import subprocess
 import asyncio
 from scapy.all import IP
-from wrapunwrap import wrap_packet
+from wrap import wrap_packet
+from config import load_config
 
-# HUSK AT TJEKKE DENNE IP IGEN
-HOST = "192.168.1.170" 
-PORT = 6789
+HOST, PORT, MODE = load_config()
 
 async def handle_connection(reader, writer):
     print(f"[DEBUG CLIENT] Forbundet til server på {HOST}:{PORT}")
@@ -110,8 +108,11 @@ async def send_packets(reader, writer):
     time.sleep(1) 
 
     # BRUG FORSKELLIGE LINJER AN PÅ OM DET ER GLOBAL ELLER LOKAL:
-    subprocess.run(["ip", "route", "replace", HOST, "dev", REAL_INTERFACE], check=True) # Lokal
-#   subprocess.run(["ip", "route", "replace", HOST, "via", REAL_GATEWAY, "dev", REAL_INTERFACE], check=True) # Global
+    if MODE == "local":
+        subprocess.run(["ip", "route", "replace", HOST, "dev", REAL_INTERFACE], check=True) # Lokal
+    elif MODE == "global":   
+        subprocess.run(["ip", "route", "replace", HOST, "via", REAL_GATEWAY, "dev", REAL_INTERFACE], check=True) # Global
+
     subprocess.run(["sudo", "sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"], check=True)
 
     subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"], check=True)

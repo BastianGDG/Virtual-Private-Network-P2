@@ -1,9 +1,10 @@
 [project]
 name = "vpn"
 version = "0.1.0"
-description = "Add your description here"
+description = "VPN client and server"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-	"pytun",
+	"scapy",
+	"pycryptodome",
 ]

@@ -1,18 +1,27 @@
 import json
 import datetime
+import os
 
-def create_peer(ID, IP, key, counter):
+PEER_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config", "peer.json"))
+
+os.makedirs(os.path.dirname(PEER_PATH), exist_ok=True)
+
+if not os.path.exists(PEER_PATH):
+    with open(PEER_PATH, "w") as file:
+        json.dump([], file)
+
+def create_peer(ID, IP, key):
     # Create class with placeholder attributes for a peer
     class createPeer:
-        def __init__(self, ID, IP, key, counter):
+        def __init__(self, ID, IP, key):
             self.ID = ID
             self.IP = IP
-            self.last_seen = str(datetime.datetime.now())
+            self.Virtual_IP = "10.0.0." + ID
             self.key = key
-            self.counter = counter
+            self.last_seen = str(datetime.datetime.now())
 
     # Create a new object peer, with the given parameters for the function
-    peer = createPeer(ID, IP, key, counter)
+    peer = createPeer(ID, IP, key)
 
     # Send peer to be updated in peer.json
     update_table(peer)
@@ -29,7 +38,7 @@ def update_table(peer):
 
     # Try opening the file in read mode, then extract the contents into data[], expect if it does not exist, simply pass
     try:
-        with open("peer.json", "r") as file:
+        with open(PEER_PATH, "r") as file:
             data.extend(json.load(file))
     except:
         pass
@@ -43,16 +52,16 @@ def update_table(peer):
     data.append(peer)
 
     # Write data, alongside the older peers, into peer.json, use indent 4 for cleaner formatting
-    with open("peer.json", "w") as file:
+    with open(PEER_PATH, "w") as file:
         json.dump(data, file, indent=4)
 
 def flush_table():
     # Delete everything and replace with [ ]
-    with open("peer.json", "w") as f:
+    with open(PEER_PATH, "w") as f:
         json.dump([], f)
 
 def lookup(ID):
-    with open("peer.json", "r") as f:
+    with open(PEER_PATH, "r") as f:
         data = json.load(f)
     # Search for the given ID, set None flag so the program does nothing if it can't be found
     try:
@@ -67,7 +76,7 @@ def lookup(ID):
         return None
 
 def edit_peer(ID, option, input):
-    with open("peer.json", "r") as f:
+    with open(PEER_PATH, "r") as f:
         data = json.load(f)
     # Same logic as lookup, expect when we're recreating the object, we're injecting the new input on the given option into the new object
     try:
@@ -78,6 +87,5 @@ def edit_peer(ID, option, input):
     except:
         print("ID not found or invalid option")
 
-peer = lookup("01")
 
-print(getattr(peer, 'IP'))
+peer = create_peer("01","192.168.0.46","19123129312")
