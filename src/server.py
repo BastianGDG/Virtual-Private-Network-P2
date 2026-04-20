@@ -109,9 +109,9 @@ async def key_exchange(reader, writer, addr):
     print(f"p: {p}")
     print(f"q: {q}")
 
-    writer.write(str(p).encode("utf-8"))
+    writer.write(str(p)+"\n".encode("utf-8"))
     await writer.drain()
-    writer.write(str(g).encode("utf-8"))
+    writer.write(str(g)+"\n".encode("utf-8"))
     await writer.drain()
 
     a = random.randint(1, 100)
