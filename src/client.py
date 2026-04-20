@@ -12,45 +12,22 @@ from config import load_config
 HOST, PORT, MODE = load_config()
 
 async def handle_connection(reader, writer):
-    print(f"[DEBUG CLIENT] Forbundet til server på {HOST}:{PORT}")
-
+    print(f"Connected to server at: {HOST}:{PORT}")
+    K = await key_exchange(reader,writer)
     try:
         while True:
-            print("\n1: Ping test")
-            print("2: Key exchange")
-            print("3: Create TUN interface (Start VPN)")
-            print("4: Exit")
-            choice = await asyncio.to_thread(input, "Select a choice: ")
-            
-            try:
-                choice = int(choice)
-            except ValueError:
-                print("[DEBUG CLIENT] Ugyldigt valg, indtast et tal.")
-                continue
-    
-            if choice == 1:
-                await pingTest(reader, writer)
-            elif choice == 2:
-                await keyExchange(reader, writer)
-            elif choice == 3:
-                print("[DEBUG CLIENT] Valg 3: Starter VPN tunneling...")
                 await send_packets(reader, writer)
-            elif choice == 4:
-                break
-            else:
-                print("[DEBUG CLIENT] Forkert valg")
-      
     except ConnectionResetError:
-        print(f"[DEBUG CLIENT FEJL] Connection lost (ConnectionResetError)")
+        print(f"Connection lost (ConnectionResetError)")
     except Exception as e:
-         print(f"[DEBUG CLIENT FEJL] Uventet fejl: {e}")
+         print(f"Unexpected error: {e}")
     finally:
-        print("[DEBUG CLIENT] Lukker writer...")
+        print("Closing connection...")
         writer.close()
         await writer.wait_closed()
 
+'''
 async def pingTest(reader, writer):
-    print("[DEBUG CLIENT] Starter ping test...")
     start = time.perf_counter()
     writer.write("Ping!".encode("utf-8"))
     await writer.drain()
@@ -64,9 +41,9 @@ async def pingTest(reader, writer):
         print(f"[DEBUG CLIENT] Modtog: {pong}. Din ping er {ping} ms")
     else:
         print("[DEBUG CLIENT FEJL] Kunne ikke modtage pong!")
-
-async def keyExchange(reader, writer):
-    print("[DEBUG CLIENT] Starter key exchange...")
+'''
+async def key_exchange(reader, writer):
+    print("Starting key exchange...")
     sentence = "Key request"
     writer.write(sentence.encode("utf-8"))
     await writer.drain()
@@ -88,21 +65,22 @@ async def keyExchange(reader, writer):
     A = int(A)
 
     K = pow(A, b, p)
-    print(f"[DEBUG CLIENT] Key exchange succes! Shared Key: {K}")
+
+    return K
 
 async def send_packets(reader, writer):
-    print("[DEBUG CLIENT] Sætter TUN interface op lokalt...")
+    print("Setting up TUN interface locally...")
     TUNSETIFF = 0x400454ca
     IFF_TUN = 0x0001
     IFF_NO_PI = 0x1000
     REAL_INTERFACE = "eth0"
-    REAL_GATEWAY = "192.168.1.1"
+    REAL_GATEWAY = "10.133.16.26"
 
     tun = os.open("/dev/net/tun", os.O_RDWR)
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
     fcntl.ioctl(tun, TUNSETIFF, ifr)
 
-    print("[DEBUG CLIENT] Konfigurerer IP og routing på client...")
+    print("Configuring IP and routing on client...")
     subprocess.run(["ip", "addr", "add", "10.0.0.2/24", "dev", "tun0"], check=True)
     subprocess.run(["ip", "link", "set", "tun0", "up"], check=True)
     time.sleep(1) 
@@ -117,12 +95,12 @@ async def send_packets(reader, writer):
 
     subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"], check=True)
     subprocess.run(["ip", "route", "replace", "128.0.0.0/1", "dev", "tun0"], check=True)
-    print("[DEBUG CLIENT] Routing sat op. Al trafik bør nu pege på tun0.")
 
     loop = asyncio.get_running_loop()
 
     async def read_tun():
-        print("[DEBUG CLIENT] 'read_tun' loop startet. Lytter efter udgående trafik på TUN...")
+        print("Reading from TUN interface...")
+
         while True:
             try:
                 packet = await loop.run_in_executor(None, os.read, tun, 2048)
@@ -141,7 +119,7 @@ async def send_packets(reader, writer):
                 await loop.run_in_executor(None, os.write, tun, packet)
                 try: 
                     ip = IP(packet[:20]) 
-                    print(f"[DEBUG CLIENT] (Scapy) Pakke-info: {ip.src} -> {ip.dst}")
+                    print(f"Packet-info: {ip.src} -> {ip.dst}")
                 except: 
                     pass
             except Exception as e:
@@ -150,7 +128,7 @@ async def send_packets(reader, writer):
     try:
         await asyncio.gather(read_tun(), write_tun())
     except asyncio.CancelledError:
-        print("[DEBUG CLIENT] Tunneling blev annulleret.")
+        print("Closing TUN interface...")
 
 async def unwrap_packet(reader):
     raw_len = await reader.readexactly(4)
@@ -160,7 +138,7 @@ async def unwrap_packet(reader):
     return packet
 
 async def main():
-    print("[DEBUG CLIENT] Starter main...")
+    print("Starting main...")
     reader, writer = await asyncio.open_connection(HOST, PORT)
     await handle_connection(reader, writer)
 

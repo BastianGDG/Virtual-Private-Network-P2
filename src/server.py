@@ -59,6 +59,7 @@ async def tun_to_socket(writer):
 async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
     print(f"\n[DEBUG SERVER] Ny client forbundet: {addr}")
+
     try:
         while True:
             data = await reader.read(1024)
@@ -79,7 +80,7 @@ async def handle_client(reader, writer):
                 
             elif len(data) > 4:
                 length = struct.unpack("!I", data[:4])[0]
-                
+
                 first_packet = data[4:4+length]
                 os.write(TUN, first_packet)
                 await asyncio.gather(
@@ -106,6 +107,9 @@ async def key_exchange(reader, writer, addr):
     while g**2 % p == 1 and g**q % p == 1:
         g = random.randrange(2, p-1)
 
+    print(f"p: {p}")
+    print(f"q: {q}")
+
     writer.write(str(p).encode("utf-8"))
     await writer.drain()
     writer.write(str(g).encode("utf-8"))
@@ -114,6 +118,8 @@ async def key_exchange(reader, writer, addr):
     a = random.randint(1, 100)
     A = g**a % p
 
+    print(f"A: {A}")
+
     B_bytes = await reader.read(1024)
     if not B_bytes:
         return 
@@ -121,8 +127,11 @@ async def key_exchange(reader, writer, addr):
     B = B_bytes.decode("utf-8")
     writer.write(str(A).encode("utf-8"))
     await writer.drain()
+
+    print(f"B: {B}")
+
     K = int(B)**a % p
-    print(f"[DEBUG SERVER] Key exchange fuldført! Shared secret key K for {addr}: {K}")
+    print(f"Shared secret key K for {addr}: {K}")
 
 async def unwrap_packet(reader):
     raw_len = await reader.readexactly(4)
