@@ -8,15 +8,18 @@ import asyncio
 from scapy.all import IP
 from wrap import wrap_packet
 from config import load_config
+from crypto import encrypt, decrypt, cut_key
+
 
 HOST, PORT, MODE = load_config()
 
 async def handle_connection(reader, writer):
     print(f"Connected to server at: {HOST}:{PORT}")
     K = await key_exchange(reader,writer)
+    K = cut_key(K)
     try:
         while True:
-                await send_packets(reader, writer)
+                await send_packets(reader, writer,K)
     except ConnectionResetError:
         print(f"Connection lost (ConnectionResetError)")
     except Exception as e:
@@ -77,7 +80,7 @@ async def key_exchange(reader, writer):
 
     return K
 
-async def send_packets(reader, writer):
+async def send_packets(reader, writer, K):
     print("Setting up TUN interface locally...")
     TUNSETIFF = 0x400454ca
     IFF_TUN = 0x0001
@@ -107,22 +110,23 @@ async def send_packets(reader, writer):
 
     loop = asyncio.get_running_loop()
 
-    async def read_tun():
+    async def read_tun(K):
         print("Reading from TUN interface...")
 
         while True:
             try:
                 packet = await loop.run_in_executor(None, os.read, tun, 2048)
-                wrapped = wrap_packet(packet)
+                wrapped = encrypt(K, packet)
+                wrapped = wrap_packet(wrapped)
                 writer.write(wrapped)
                 await writer.drain()
             except Exception as e:
                 break
     
-    async def write_tun():
+    async def write_tun(K):
         while True:
             try:
-                packet = await unwrap_packet(reader)
+                packet = await unwrap_packet(reader,K)
                 if not packet:
                     break
                 await loop.run_in_executor(None, os.write, tun, packet)
@@ -139,11 +143,12 @@ async def send_packets(reader, writer):
     except asyncio.CancelledError:
         print("Closing TUN interface...")
 
-async def unwrap_packet(reader):
+async def unwrap_packet(reader,K):
     raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
 
     packet = await reader.readexactly(size)
+    packet = decrypt(K,packet)
     return packet
 
 async def main():

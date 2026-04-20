@@ -7,6 +7,7 @@ import fcntl
 from scapy.all import IP
 import subprocess
 from wrap import wrap_packet
+from crypto import encrypt, decrypt, cut_key
 
 HOST = "0.0.0.0"
 PORT = 6789
@@ -32,10 +33,10 @@ subprocess.run(["sudo","iptables","-A","FORWARD","-i","tun0","-o","eth0","-j","A
 subprocess.run(["sudo","iptables","-A","FORWARD","-i","eth0","-o","tun0","-j","ACCEPT"])
 print("[DEBUG SERVER] Netværkskonfiguration og iptables regler anvendt.")
 
-async def socket_to_tun(reader):
+async def socket_to_tun(reader,K):
     while True:
         try:
-            packet = await unwrap_packet(reader)
+            packet = await unwrap_packet(reader,K)
             if not packet:
                 break
             os.write(TUN, packet)
@@ -44,12 +45,13 @@ async def socket_to_tun(reader):
         except Exception as e:
             break
 
-async def tun_to_socket(writer):
+async def tun_to_socket(writer,K):
     loop = asyncio.get_running_loop()
     while True:
         try:
             packet = await loop.run_in_executor(None, os.read, TUN, 2048)
-            wrapped = wrap_packet(packet)
+            wrapped = encrypt(K,packet)
+            wrapped = wrap_packet(wrapped)
             writer.write(wrapped)
             await writer.drain()
         except Exception as e:
@@ -75,7 +77,8 @@ async def handle_client(reader, writer):
             
             elif "Key request" in msg:
                 print(f"[DEBUG SERVER] Key request modtaget fra {addr}")
-                await key_exchange(reader, writer, addr)
+                K = await key_exchange(reader, writer, addr)
+                K = cut_key(K)
                 
             elif len(data) > 4:
                 length = struct.unpack("!I", data[:4])[0]
@@ -83,8 +86,8 @@ async def handle_client(reader, writer):
                 first_packet = data[4:4+length]
                 os.write(TUN, first_packet)
                 await asyncio.gather(
-                    socket_to_tun(reader),
-                    tun_to_socket(writer)
+                    socket_to_tun(reader,K),
+                    tun_to_socket(writer,K)
                 )
                 print("[DEBUG SERVER] handle_client: TUN loops er afsluttet.")
                 break 
@@ -122,7 +125,7 @@ async def key_exchange(reader, writer, addr):
     writer.write(g.encode("utf-8"))
     await writer.drain()
 
-    B_bytes = await reader.readline
+    B_bytes = await reader.readline()
     if not B_bytes:
         return 
         
@@ -136,12 +139,14 @@ async def key_exchange(reader, writer, addr):
 
     K = int(B)**a % p
     print(f"Shared secret key K for {addr}: {K}")
+    return K
 
-async def unwrap_packet(reader):
+async def unwrap_packet(reader,K):
     raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
 
     packet = await reader.readexactly(size)
+    packet = decrypt(K,packet)
     return packet
 
 async def main():
