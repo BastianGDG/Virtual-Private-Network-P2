@@ -109,25 +109,27 @@ async def key_exchange(reader, writer, addr):
     print(f"p: {p}")
     print(f"q: {q}")
 
-    p = str(p)+"\n"
-    g = str(g)+"\n"
-
-    writer.write(p.encode("utf-8"))
-    await writer.drain()
-    writer.write(g.encode("utf-8"))
-    await writer.drain()
-
     a = random.randint(1, 100)
     A = g**a % p
 
     print(f"A: {A}")
 
-    B_bytes = await reader.read(1024)
+    p_send = str(p)+"\n"
+    g = str(g)+"\n"
+
+    writer.write(p_send.encode("utf-8"))
+    await writer.drain()
+    writer.write(g.encode("utf-8"))
+    await writer.drain()
+
+    B_bytes = await reader.readline
     if not B_bytes:
         return 
         
     B = B_bytes.decode("utf-8")
-    writer.write(str(A).encode("utf-8"))
+
+    A = str(A) + "\n"
+    writer.write(A.encode("utf-8"))
     await writer.drain()
 
     print(f"B: {B}")

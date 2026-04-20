@@ -54,20 +54,22 @@ async def key_exchange(reader, writer):
     g = g_bytes.decode("utf-8")
 
     print(f"p: {p}")
-    print(f"p: {g}")
+    print(f"g: {g}")
 
     p = int(p)
     g = int(g)
     b = random.randint(1,100)
     B = pow(g, b, p)
     
-    print(f"p: {b}")
-    print(f"p: {B}")
+    print(f"b: {b}")
+    print(f"B: {B}")
 
-    writer.write(str(B).encode("utf-8"))
+    B = str(B) + "\n"
+
+    writer.write(B.encode("utf-8"))
     await writer.drain()
     
-    A_bytes = await reader.read(1024)
+    A_bytes = await reader.readline()
     A = A_bytes.decode("utf-8")
     A = int(A)
 
