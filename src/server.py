@@ -29,7 +29,6 @@ subprocess.run(["ip","link","set","tun0","up"])
 subprocess.run(["sudo","iptables", "-t", "nat", "-A","POSTROUTING","-o","eth0","-j","MASQUERADE"])
 subprocess.run(["sudo","sysctl","-w","net.ipv4.ip_forward=1"])
 subprocess.run(["sudo","sysctl","-w","net.ipv6.conf.all.forwarding=1"])
-
 subprocess.run(["sudo","iptables","-A","FORWARD","-i","tun0","-o","eth0","-j","ACCEPT"])
 subprocess.run(["sudo","iptables","-A","FORWARD","-i","eth0","-o","tun0","-j","ACCEPT"])
 print("[DEBUG SERVER] Netværkskonfiguration og iptables regler anvendt.")
@@ -81,8 +80,6 @@ async def handle_client(reader, writer):
             elif len(data) > 4:
                 length = struct.unpack("!I", data[:4])[0]
                 
-                # ADVARSEL: Dette er et sted hvor tingene ofte går galt i dit nuværende setup!
-                # Hvis længen af pakken er større end det data vi læste (1024), mangler vi resten af pakken.
                 first_packet = data[4:4+length]
                 os.write(TUN, first_packet)
                 await asyncio.gather(
