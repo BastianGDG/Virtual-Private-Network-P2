@@ -4,7 +4,6 @@ import asyncio
 import os
 import struct
 import fcntl
-import select
 from scapy.all import IP
 import subprocess
 from wrap import wrap_packet

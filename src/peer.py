@@ -88,4 +88,4 @@ def edit_peer(ID, option, input):
         print("ID not found or invalid option")
 
 
-peer = create_peer("01","192.168.0.46","19123129312")
+peer = create_peer("02","192.168.0.6767","191231212312313131329312")
