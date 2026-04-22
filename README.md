@@ -35,7 +35,7 @@ sudo -E uv run python src/client.py --ip <SERVER_IP> --port 6789 --mode <local /
 Example:
 
 ```bash
-sudo -E uv run python src/client.py --ip 192.168.1.170 --port 6789 --mode <local> --password hello
+sudo -E uv run python src/client.py --ip 192.168.1.170 --port 6789 --mode local --password hello
 ```
 
 ## Notes
