@@ -7,7 +7,8 @@ import fcntl
 from scapy.all import IP
 import subprocess
 from wrap import wrap_packet
-from crypto import encrypt, decrypt, cut_key
+from crypto import encrypt, decrypt, hash
+from config import load_server_config
 
 HOST = "0.0.0.0"
 PORT = 6789
@@ -15,6 +16,9 @@ PORT = 6789
 TUNSETIFF = 0x400454ca
 IFF_TUN   = 0x0001
 IFF_NO_PI = 0x1000
+
+PASSWORD = load_server_config()
+PASSWORD = hash(PASSWORD)
 
 print("[DEBUG SERVER] Sætter TUN interface op...")
 TUN = os.open("/dev/net/tun", os.O_RDWR)
@@ -41,8 +45,10 @@ async def socket_to_tun(reader,K):
                 break
             os.write(TUN, packet)
         except asyncio.IncompleteReadError as e:
+            print(f"linje 44 {e}")
             break
         except Exception as e:
+            print(f"linje 47 {e}")
             break
 
 async def tun_to_socket(writer,K):
@@ -55,44 +61,52 @@ async def tun_to_socket(writer,K):
             writer.write(wrapped)
             await writer.drain()
         except Exception as e:
+            print(f"linje 60 {e}")
             break
 
 async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
     print(f"\n[DEBUG SERVER] Ny client forbundet: {addr}")
+    
+    input_password = await reader.readline()
+    input_password = input_password.decode("utf-8", errors="ignore")
+    input_password = input_password.removesuffix("\n")
+    input_password = hash(input_password)
 
     try:
-        while True:
-            data = await reader.read(1024)
-            if not data:
-                print("[DEBUG SERVER] handle_client: Modtog 0 bytes, client har lukket forbindelsen.")
-                break
+        if input_password == PASSWORD:
+            while True:
+                data = await reader.read(2048)
+                if not data:
+                    print("[DEBUG SERVER] handle_client: Modtog 0 bytes, client har lukket forbindelsen.")
+                    break
+                    
+                msg = data.decode("utf-8", errors="ignore")
                 
-            msg = data.decode("utf-8", errors="ignore")
-            
-            if "Ping!" in msg:
-                print(f"[DEBUG SERVER] Ping modtaget fra {addr}")
-                writer.write("Pong!".encode("utf-8"))
-                await writer.drain()
-            
-            elif "Key request" in msg:
-                print(f"[DEBUG SERVER] Key request modtaget fra {addr}")
-                K = await key_exchange(reader, writer, addr)
-                K = cut_key(K)
+                if "Ping!" in msg:
+                    print(f"[DEBUG SERVER] Ping modtaget fra {addr}")
+                    writer.write("Pong!".encode("utf-8"))
+                    await writer.drain()
                 
-            elif len(data) > 4:
-                length = struct.unpack("!I", data[:4])[0]
+                elif "Key request" in msg:
+                    print(f"[DEBUG SERVER] Key request modtaget fra {addr}")
+                    K = await key_exchange(reader, writer, addr)
+                    K = hash(K)
+                    
+                elif len(data) > 4:
+                    length = struct.unpack("!I", data[:4])[0]
 
-                first_packet = data[4:4+length]
-                os.write(TUN, first_packet)
-                await asyncio.gather(
-                    socket_to_tun(reader,K),
-                    tun_to_socket(writer,K)
-                )
-                print("[DEBUG SERVER] handle_client: TUN loops er afsluttet.")
-                break 
-            else:
-                print(f"[DEBUG SERVER] handle_client: Modtog meget kort/ukendt data: {data}")
+                    first_packet = data[4:4+length]
+                    os.write(TUN, first_packet)
+
+                    await asyncio.gather(
+                        socket_to_tun(reader,K),
+                        tun_to_socket(writer,K)
+                    )
+                    print("[DEBUG SERVER] handle_client: TUN loops er afsluttet.")
+                    break 
+                else:
+                    print(f"[DEBUG SERVER] handle_client: Modtog meget kort/ukendt data: {data}")
                 
     except Exception as e:
         print(f"[DEBUG SERVER FEJL] i handle_client: {e}")
@@ -103,25 +117,21 @@ async def handle_client(reader, writer):
 
 async def key_exchange(reader, writer, addr):
     print(f"[DEBUG SERVER] Starter key exchange med {addr}...")
-    q = number.getPrime(1024)
+    q = number.getPrime(2048)
     p = 2 * q + 1
     g = random.randrange(2, p-1)
     while g**2 % p == 1 and g**q % p == 1:
         g = random.randrange(2, p-1)
 
-    print(f"p: {p}")
-    print(f"q: {q}")
-
-    a = random.randint(1, 100)
+    a = random.randint(50, 200)
     A = g**a % p
-
-    print(f"A: {A}")
 
     p_send = str(p)+"\n"
     g = str(g)+"\n"
 
     writer.write(p_send.encode("utf-8"))
     await writer.drain()
+
     writer.write(g.encode("utf-8"))
     await writer.drain()
 
@@ -135,10 +145,8 @@ async def key_exchange(reader, writer, addr):
     writer.write(A.encode("utf-8"))
     await writer.drain()
 
-    print(f"B: {B}")
-
     K = int(B)**a % p
-    print(f"Shared secret key K for {addr}: {K}")
+    print(f"Key exchange was done succesfuly with {addr}")
     return K
 
 async def unwrap_packet(reader,K):

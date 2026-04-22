@@ -7,17 +7,24 @@ import subprocess
 import asyncio
 from scapy.all import IP
 from wrap import wrap_packet
-from config import load_config
-from crypto import encrypt, decrypt, cut_key
+from config import load_client_config
+from crypto import encrypt, decrypt, hash
 
-
-HOST, PORT, MODE = load_config()
+HOST, PORT, MODE, PASSWORD = load_client_config()
 
 async def handle_connection(reader, writer):
     print(f"Connected to server at: {HOST}:{PORT}")
-    K = await key_exchange(reader,writer)
-    K = cut_key(K)
+
+    global PASSWORD
+    print(PASSWORD)
+    PASSWORD = str(PASSWORD) + "\n"
+
+    writer.write(PASSWORD.encode("utf-8"))
+    await writer.drain()
+    
     try:
+        K = await key_exchange(reader,writer)
+        K = hash(K)
         while True:
                 await send_packets(reader, writer,K)
     except ConnectionResetError:
@@ -56,16 +63,10 @@ async def key_exchange(reader, writer):
     g_bytes = await reader.readline()
     g = g_bytes.decode("utf-8")
 
-    print(f"p: {p}")
-    print(f"g: {g}")
-
     p = int(p)
     g = int(g)
-    b = random.randint(1,100)
+    b = random.randint(50,200)
     B = pow(g, b, p)
-    
-    print(f"b: {b}")
-    print(f"B: {B}")
 
     B = str(B) + "\n"
 
@@ -77,7 +78,8 @@ async def key_exchange(reader, writer):
     A = int(A)
 
     K = pow(A, b, p)
-
+    
+    print("Key exchange was a sucess")
     return K
 
 async def send_packets(reader, writer, K):
@@ -86,7 +88,7 @@ async def send_packets(reader, writer, K):
     IFF_TUN = 0x0001
     IFF_NO_PI = 0x1000
     REAL_INTERFACE = "eth0"
-    REAL_GATEWAY = "10.133.16.26"
+    REAL_GATEWAY = "192.168.1.1"
 
     tun = os.open("/dev/net/tun", os.O_RDWR)
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
@@ -110,8 +112,13 @@ async def send_packets(reader, writer, K):
 
     loop = asyncio.get_running_loop()
 
-    async def read_tun(K):
+    async def read_tun():
         print("Reading from TUN interface...")
+
+        # Client needs to send an initalizing unencrypted packet to server, to tell that client is ready
+        init_packet = wrap_packet(await loop.run_in_executor(None, os.read, tun, 2048))
+        writer.write(init_packet)
+        await writer.drain()
 
         while True:
             try:
@@ -121,9 +128,10 @@ async def send_packets(reader, writer, K):
                 writer.write(wrapped)
                 await writer.drain()
             except Exception as e:
+                print(f"Error: {e}")
                 break
     
-    async def write_tun(K):
+    async def write_tun():
         while True:
             try:
                 packet = await unwrap_packet(reader,K)
