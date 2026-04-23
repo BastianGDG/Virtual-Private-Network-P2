@@ -12,11 +12,12 @@ from crypto import encrypt, decrypt, hash
 
 HOST, PORT, MODE, PASSWORD = load_client_config()
 
+print(f"Client configuration: HOST={HOST}, PORT={PORT}, MODE={MODE}, PASSWORD={'*' * len(PASSWORD)}")
+
 async def handle_connection(reader, writer):
     print(f"Connected to server at: {HOST}:{PORT}")
 
     global PASSWORD
-    print(PASSWORD)
     PASSWORD = str(PASSWORD) + "\n"
 
     writer.write(PASSWORD.encode("utf-8"))
@@ -52,6 +53,7 @@ async def pingTest(reader, writer):
     else:
         print("[DEBUG CLIENT FEJL] Kunne ikke modtage pong!")
 '''
+
 async def key_exchange(reader, writer):
     print("Starting key exchange...")
     sentence = "Key request"

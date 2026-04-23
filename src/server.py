@@ -9,6 +9,7 @@ import subprocess
 from wrap import wrap_packet
 from crypto import encrypt, decrypt, hash
 from config import load_server_config
+from peer import create_peer, flush_table
 
 HOST = "0.0.0.0"
 PORT = 6789
@@ -18,7 +19,11 @@ IFF_TUN   = 0x0001
 IFF_NO_PI = 0x1000
 
 PASSWORD = load_server_config()
-PASSWORD = hash(PASSWORD)
+
+if PASSWORD:
+    PASSWORD = hash(PASSWORD)
+
+CLIENT_COUNT = 0
 
 print("[DEBUG SERVER] Sætter TUN interface op...")
 TUN = os.open("/dev/net/tun", os.O_RDWR)
@@ -75,23 +80,15 @@ async def handle_client(reader, writer):
 
     try:
         if input_password == PASSWORD:
+            K = await key_exchange(reader, writer, addr)
+            K = hash(K)
+            CLIENT_COUNT += 1
+            create_peer(str(CLIENT_COUNT), addr[0], K)
             while True:
                 data = await reader.read(2048)
                 if not data:
                     print("[DEBUG SERVER] handle_client: Modtog 0 bytes, client har lukket forbindelsen.")
                     break
-                    
-                msg = data.decode("utf-8", errors="ignore")
-                
-                if "Ping!" in msg:
-                    print(f"[DEBUG SERVER] Ping modtaget fra {addr}")
-                    writer.write("Pong!".encode("utf-8"))
-                    await writer.drain()
-                
-                elif "Key request" in msg:
-                    print(f"[DEBUG SERVER] Key request modtaget fra {addr}")
-                    K = await key_exchange(reader, writer, addr)
-                    K = hash(K)
                     
                 elif len(data) > 4:
                     length = struct.unpack("!I", data[:4])[0]
@@ -120,11 +117,11 @@ async def key_exchange(reader, writer, addr):
     q = number.getPrime(2048)
     p = 2 * q + 1
     g = random.randrange(2, p-1)
-    while g**2 % p == 1 and g**q % p == 1:
+    while pow(g,2,p) == 1 and pow(g,q,p) == 1:
         g = random.randrange(2, p-1)
 
     a = random.randint(50, 200)
-    A = g**a % p
+    A = pow(g,a,p)
 
     p_send = str(p)+"\n"
     g = str(g)+"\n"
@@ -145,7 +142,7 @@ async def key_exchange(reader, writer, addr):
     writer.write(A.encode("utf-8"))
     await writer.drain()
 
-    K = int(B)**a % p
+    K = pow(int(B), a, p)
     print(f"Key exchange was done succesfuly with {addr}")
     return K
 
