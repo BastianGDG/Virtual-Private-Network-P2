@@ -11,20 +11,27 @@ from crypto import encrypt, decrypt, hash
 from config import load_server_config
 from peer import create_peer, flush_table
 
+# Server configuration
 HOST = "0.0.0.0"
 PORT = 6789
 
+# TUN interface configuration
 TUNSETIFF = 0x400454ca
 IFF_TUN   = 0x0001
 IFF_NO_PI = 0x1000
 
+# Load server password from input or config file
 PASSWORD = load_server_config()
+
+# If password was inputted, hash it, otherwise PASSWORD will be None and the server will not require authentication
 
 if PASSWORD:
     PASSWORD = hash(PASSWORD)
 
+# Global variable to keep track of connected clients, this is used to give unique IDs to clients as they connect
 CLIENT_COUNT = 0
 
+# Set up TUN interface and network configuration
 print("[DEBUG SERVER] Sætter TUN interface op...")
 TUN = os.open("/dev/net/tun", os.O_RDWR)
 
@@ -33,6 +40,7 @@ fcntl.ioctl(TUN, TUNSETIFF, ifr)
 
 print("[DEBUG SERVER] TUN interface oprettet: tun0")
 
+# Configure IP and routing on server
 subprocess.run(["ip","addr","add","10.0.0.1/24","dev","tun0"])
 subprocess.run(["ip","link","set","tun0","up"])
 subprocess.run(["sudo","iptables", "-t", "nat", "-A","POSTROUTING","-o","eth0","-j","MASQUERADE"])
@@ -41,6 +49,9 @@ subprocess.run(["sudo","sysctl","-w","net.ipv6.conf.all.forwarding=1"])
 subprocess.run(["sudo","iptables","-A","FORWARD","-i","tun0","-o","eth0","-j","ACCEPT"])
 subprocess.run(["sudo","iptables","-A","FORWARD","-i","eth0","-o","tun0","-j","ACCEPT"])
 print("[DEBUG SERVER] Netværkskonfiguration og iptables regler anvendt.")
+
+# Flush peer table on server start, to make sure no old peers are present
+flush_table()
 
 async def socket_to_tun(reader,K):
     while True:
