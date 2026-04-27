@@ -94,11 +94,12 @@ async def send_packets(reader, writer, K,VIRTUAL_IP):
 
     cmd = ["ip", "route", "show", "default"]
     result = subprocess.check_output(cmd).decode('utf-8')
-    
+
     REAL_GATEWAY = result.split()[2]
     REAL_INTERFACE = result.split()[4]
 
-    print(VIRTUAL_IP)
+    print(REAL_GATEWAY)
+    print(REAL_INTERFACE)
 
     tun = os.open("/dev/net/tun", os.O_RDWR)
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)

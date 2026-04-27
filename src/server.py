@@ -64,6 +64,9 @@ async def socket_to_tun(reader,K):
     while True:
         try:
             packet = await unwrap_packet(reader,K)
+            Ip = IP(packet[:20])
+            Ip = Ip.src
+            print(f"Ip: {Ip}, key: {K.hex()}")
             if not packet:
                 break
             os.write(TUN, packet)
