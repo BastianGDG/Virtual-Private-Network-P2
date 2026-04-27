@@ -93,8 +93,17 @@ async def handle_client(reader, writer):
         if input_password == PASSWORD:
             K = await key_exchange(reader, writer, addr)
             K = hash(K)
+            K = K.hex()
+            global CLIENT_COUNT
             CLIENT_COUNT += 1
-            create_peer(str(CLIENT_COUNT), addr[0], K)
+            peer = create_peer(str(CLIENT_COUNT), addr[0], K)
+
+            Virtual_IP = peer["Virtual_IP"]
+
+            print(Virtual_IP)
+
+            K = bytes.fromhex(K)
+
             while True:
                 data = await reader.read(2048)
                 if not data:

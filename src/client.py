@@ -22,7 +22,7 @@ async def handle_connection(reader, writer):
 
     writer.write(PASSWORD.encode("utf-8"))
     await writer.drain()
-    
+
     try:
         K = await key_exchange(reader,writer)
         K = hash(K)
@@ -56,9 +56,6 @@ async def pingTest(reader, writer):
 
 async def key_exchange(reader, writer):
     print("Starting key exchange...")
-    sentence = "Key request"
-    writer.write(sentence.encode("utf-8"))
-    await writer.drain()
     
     p_bytes = await reader.readline()
     p = p_bytes.decode("utf-8")
@@ -91,13 +88,14 @@ async def send_packets(reader, writer, K):
     IFF_NO_PI = 0x1000
     REAL_INTERFACE = "eth0"
     REAL_GATEWAY = "192.168.1.1"
+    VIRTUAL_IP = "10.0.0.1/24"
 
     tun = os.open("/dev/net/tun", os.O_RDWR)
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
     fcntl.ioctl(tun, TUNSETIFF, ifr)
 
     print("Configuring IP and routing on client...")
-    subprocess.run(["ip", "addr", "add", "10.0.0.2/24", "dev", "tun0"], check=True)
+    subprocess.run(["ip", "addr", "add", VIRTUAL_IP, "dev", "tun0"], check=True)
     subprocess.run(["ip", "link", "set", "tun0", "up"], check=True)
     time.sleep(1) 
 
