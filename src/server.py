@@ -41,7 +41,7 @@ fcntl.ioctl(TUN, TUNSETIFF, ifr)
 print("[DEBUG SERVER] TUN interface oprettet: tun0")
 
 # Configure IP and routing on server
-subprocess.run(["ip","addr","add","10.0.0.1/24","dev","tun0"])
+subprocess.run(["ip","addr","add","10.0.0.0/24","dev","tun0"])
 subprocess.run(["ip","link","set","tun0","up"])
 subprocess.run(["sudo","iptables", "-t", "nat", "-A","POSTROUTING","-o","eth0","-j","MASQUERADE"])
 subprocess.run(["sudo","sysctl","-w","net.ipv4.ip_forward=1"])
@@ -97,13 +97,13 @@ async def handle_client(reader, writer):
             global CLIENT_COUNT
             CLIENT_COUNT += 1
             peer = create_peer(str(CLIENT_COUNT), addr[0], K)
-
-            Virtual_IP = peer["Virtual_IP"]
-
-            print(Virtual_IP)
-
             K = bytes.fromhex(K)
 
+            Virtual_IP = getattr(peer,"Virtual_IP")
+            Virtual_IP = Virtual_IP + "\n"
+            writer.write(Virtual_IP.encode("utf-8"))
+            await writer.drain()
+            
             while True:
                 data = await reader.read(2048)
                 if not data:

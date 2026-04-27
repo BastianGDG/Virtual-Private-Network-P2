@@ -26,8 +26,11 @@ async def handle_connection(reader, writer):
     try:
         K = await key_exchange(reader,writer)
         K = hash(K)
+
+        Virtual_IP = await reader.readline()
+        
         while True:
-                await send_packets(reader, writer,K)
+                await send_packets(reader, writer,K,Virtual_IP)
     except ConnectionResetError:
         print(f"Connection lost (ConnectionResetError)")
     except Exception as e:
@@ -81,14 +84,15 @@ async def key_exchange(reader, writer):
     print("Key exchange was a sucess")
     return K
 
-async def send_packets(reader, writer, K):
+async def send_packets(reader, writer, K,VIRTUAL_IP):
     print("Setting up TUN interface locally...")
     TUNSETIFF = 0x400454ca
     IFF_TUN = 0x0001
     IFF_NO_PI = 0x1000
     REAL_INTERFACE = "eth0"
     REAL_GATEWAY = "192.168.1.1"
-    VIRTUAL_IP = "10.0.0.1/24"
+
+    print(VIRTUAL_IP)
 
     tun = os.open("/dev/net/tun", os.O_RDWR)
     ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
