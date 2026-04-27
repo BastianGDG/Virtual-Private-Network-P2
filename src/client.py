@@ -28,7 +28,7 @@ async def handle_connection(reader, writer):
         K = hash(K)
 
         Virtual_IP = await reader.readline()
-        Virtual_IP = Virtual_IP[:-2]
+        Virtual_IP = Virtual_IP[:-1]
         
         while True:
                 await send_packets(reader, writer,K,Virtual_IP)

@@ -9,7 +9,7 @@ import subprocess
 from wrap import wrap_packet
 from crypto import encrypt, decrypt, hash
 from config import load_server_config
-from peer import create_peer, flush_table
+from peer import create_peer, flush_table, lookup
 
 # Server configuration
 HOST = "0.0.0.0"
@@ -30,6 +30,8 @@ if PASSWORD:
 
 # Global variable to keep track of connected clients, this is used to give unique IDs to clients as they connect
 CLIENT_COUNT = 0
+
+CLIENTS = {}
 
 # Set up TUN interface and network configuration
 print("[DEBUG SERVER] Sætter TUN interface op...")
@@ -72,13 +74,25 @@ async def tun_to_socket(writer,K):
     while True:
         try:
             packet = await loop.run_in_executor(None, os.read, TUN, 2048)
+            Ip = IP(packet[:20])
+            dest = Ip.dst 
+
+            ID = dest.split(".")
+            ID = ID[-1]
+
+            peer = lookup(ID)
+            Ip = getattr(peer,"IP")
+            writer = CLIENTS.get(Ip)
+
+            K = getattr(peer,"key")
+            K = bytes.fromhex(K)
+
             wrapped = encrypt(K,packet)
             wrapped = wrap_packet(wrapped)
             writer.write(wrapped)
             await writer.drain()
         except Exception as e:
             print(f"linje 60 {e}")
-            break
 
 async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
@@ -96,6 +110,11 @@ async def handle_client(reader, writer):
             K = K.hex()
             global CLIENT_COUNT
             CLIENT_COUNT += 1
+
+            ip = addr[0]
+
+            CLIENTS[ip] = writer
+
             peer = create_peer(str(CLIENT_COUNT), addr[0], K)
             K = bytes.fromhex(K)
 
@@ -103,7 +122,7 @@ async def handle_client(reader, writer):
             Virtual_IP = Virtual_IP + "\n"
             writer.write(Virtual_IP.encode("utf-8"))
             await writer.drain()
-            
+
             while True:
                 data = await reader.read(2048)
                 if not data:

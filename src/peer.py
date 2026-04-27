@@ -68,7 +68,7 @@ def lookup(ID):
         search = next((item for item in data if item["ID"] == ID), None)
 
         # The peer needs to be recreated from the lookup, to ensure the object exists between runs
-        result = create_peer(search["ID"],search["IP"],search["key"],search["counter"])
+        result = create_peer(search["ID"],search["IP"],search["key"])
         return result
     # If the search fails the ID likely does not exist
     except:
@@ -86,6 +86,3 @@ def edit_peer(ID, option, input):
         create_peer(search["ID"],search["IP"],search["key"],search["counter"])
     except:
         print("ID not found or invalid option")
-
-
-peer = create_peer("02","192.168.0.6767","191231212312313131329312")
