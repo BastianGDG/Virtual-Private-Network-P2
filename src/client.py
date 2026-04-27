@@ -90,8 +90,13 @@ async def send_packets(reader, writer, K,VIRTUAL_IP):
     TUNSETIFF = 0x400454ca
     IFF_TUN = 0x0001
     IFF_NO_PI = 0x1000
-    REAL_INTERFACE = "eth0"
-    REAL_GATEWAY = "192.168.1.1"
+
+
+    cmd = ["ip", "route", "show", "default"]
+    result = subprocess.check_output(cmd).decode('utf-8')
+    
+    REAL_GATEWAY = result.split()[2]
+    REAL_INTERFACE = result.split()[4]
 
     print(VIRTUAL_IP)
 
