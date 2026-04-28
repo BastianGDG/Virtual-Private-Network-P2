@@ -48,7 +48,7 @@ result = subprocess.check_output(cmd).decode('utf-8')
 REAL_INTERFACE = result.split()[4]
 
 # Configure IP and routing on server
-subprocess.run(["ip","addr","add","10.0.0.0/24","dev","tun0"])
+subprocess.run(["ip","addr","add","10.0.0.254/24","dev","tun0"])
 subprocess.run(["ip","link","set","tun0","up"])
 subprocess.run(["sudo","iptables", "-t", "nat", "-A","POSTROUTING","-o",REAL_INTERFACE,"-j","MASQUERADE"])
 subprocess.run(["sudo","sysctl","-w","net.ipv4.ip_forward=1"])
