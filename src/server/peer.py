@@ -72,7 +72,6 @@ def lookup(ID):
         return result
     # If the search fails the ID likely does not exist
     except:
-        print("ID not found")
         return None
 
 def edit_peer(ID, option, input):

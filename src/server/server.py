@@ -84,15 +84,13 @@ async def tun_to_socket(writer,K):
                 K = getattr(peer,"key")
                 K = bytes.fromhex(K)
 
-                print(f"Ip: {dest}, key: {K.hex()}")
-
                 wrapped = encrypt(packet,K)
                 wrapped = wrap_packet(wrapped)
                 writer.write(wrapped)
             else:
                 pass
         except Exception as e:
-            print(f"Line 96 Error: {e}")
+            pass
 
 async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
@@ -153,12 +151,12 @@ async def handle_client(reader, writer):
         writer.close()
         await writer.wait_closed()
 
-async def unwrap_packet(reader,K,aesgcm):
+async def unwrap_packet(reader,K):
     raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
 
     packet = await reader.readexactly(size)
-    packet = decrypt(packet,aesgcm,K)
+    packet = decrypt(packet,K)
     return packet
 
 async def main():
