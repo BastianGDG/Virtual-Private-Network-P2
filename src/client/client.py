@@ -29,12 +29,12 @@ async def handle_connection(reader, writer):
     try:
         K = await client_handshake(reader,writer)
         K = hash(K)
-        aesgcm = AESGCM(K)
+
         Virtual_IP = await reader.readline()
         Virtual_IP = Virtual_IP[:-1]
         
         while True:
-                await send_packets(reader, writer,K,Virtual_IP,aesgcm)
+                await send_packets(reader, writer,K,Virtual_IP)
     except ConnectionResetError:
         print(f"Connection lost (ConnectionResetError)")
     except Exception as e:
@@ -61,7 +61,7 @@ async def pingTest(reader, writer):
         print("[DEBUG CLIENT FEJL] Kunne ikke modtage pong!")
 '''
 
-async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
+async def send_packets(reader, writer,K,VIRTUAL_IP):
     print("Setting up TUN interface locally...")
 
     cmd = ["ip", "route", "show", "default"]
@@ -91,7 +91,7 @@ async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
         while True:
             try:
                 packet = await loop.run_in_executor(None, os.read, tun, 2048)
-                wrapped = encrypt(packet, aesgcm)
+                wrapped = encrypt(packet,K)
                 wrapped = wrap_packet(wrapped)
                 writer.write(wrapped)
             except Exception as e:
@@ -101,7 +101,7 @@ async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
     async def write_tun():
         while True:
             try:
-                packet = await unwrap_packet(reader,aesgcm)
+                packet = await unwrap_packet(reader,K)
                 if not packet:
                     break
                 await loop.run_in_executor(None, os.write, tun, packet)
@@ -119,12 +119,12 @@ async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
     except asyncio.CancelledError:
         print("Closing TUN interface...")
 
-async def unwrap_packet(reader,aesgcm):
+async def unwrap_packet(reader,K):
     raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
 
     packet = await reader.readexactly(size)
-    packet = decrypt(packet,aesgcm)
+    packet = decrypt(packet,K)
     return packet
 
 async def main():

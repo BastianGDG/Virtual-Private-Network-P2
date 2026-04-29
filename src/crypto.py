@@ -14,8 +14,9 @@ def hash(key):
     
     return key
 
-def encrypt(data,aesgcm):
+def encrypt(data,K):
     try:
+        aesgcm = AESGCM(K)
         nonce = os.urandom(12) 
         ciphertext = aesgcm.encrypt(nonce, data, None)
         
@@ -24,8 +25,9 @@ def encrypt(data,aesgcm):
         print(e)
         return None
 
-def decrypt(ciphertext,aesgcm):
+def decrypt(ciphertext,K):
     nonce = ciphertext[:12]
     encrypted_payload = ciphertext[12:]
 
+    aesgcm = AESGCM(K)
     return aesgcm.decrypt(nonce, encrypted_payload, None)

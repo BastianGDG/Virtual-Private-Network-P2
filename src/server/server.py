@@ -4,6 +4,7 @@ import asyncio
 import os
 import struct
 import fcntl
+import socket
 from scapy.all import IP
 import subprocess
 from ..wrap import wrap_packet
@@ -13,6 +14,7 @@ from .peer import create_peer, flush_table, lookup
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from ..setup import create_tun_interface, configure_server_routing
 from ..comms import server_handshake
+
 # Server configuration
 HOST = "0.0.0.0"
 PORT = 6789
@@ -48,13 +50,10 @@ print("[DEBUG SERVER] Netværkskonfiguration og iptables regler anvendt.")
 # Flush peer table on server start, to make sure no old peers are present
 flush_table()
 
-async def socket_to_tun(reader,K,aesgcm):
+async def socket_to_tun(reader,K):
     while True:
         try:
-            packet = await unwrap_packet(reader,K,aesgcm)
-            Ip = IP(packet[:20])
-            Ip = Ip.src
-            print(f"Ip: {Ip}, key: {K.hex()}")
+            packet = await unwrap_packet(reader,K)
             if not packet:
                 break
             os.write(TUN, packet)
@@ -65,29 +64,35 @@ async def socket_to_tun(reader,K,aesgcm):
             print(f"linje 47 {e}")
             break
 
-async def tun_to_socket(writer,K,aesgcm):
+async def tun_to_socket(writer,K):
     loop = asyncio.get_running_loop()
     while True:
         try:
             packet = await loop.run_in_executor(None, os.read, TUN, 2048)
-            Ip = IP(packet[:20])
-            dest = Ip.dst 
+            dest_ip_bytes = packet[16:20]
+            dest = socket.inet_ntoa(dest_ip_bytes)
 
             ID = dest.split(".")
             ID = ID[-1]
-
+            
             peer = lookup(ID)
-            Ip = getattr(peer,"IP")
-            writer = CLIENTS.get(Ip)
 
-            K = getattr(peer,"key")
-            K = bytes.fromhex(K)
+            if peer:
+                Ip = getattr(peer,"IP")
+                writer = CLIENTS.get(Ip)
 
-            wrapped = encrypt(packet,aesgcm)
-            wrapped = wrap_packet(wrapped)
-            writer.write(wrapped)
+                K = getattr(peer,"key")
+                K = bytes.fromhex(K)
+
+                print(f"Ip: {dest}, key: {K.hex()}")
+
+                wrapped = encrypt(packet,K)
+                wrapped = wrap_packet(wrapped)
+                writer.write(wrapped)
+            else:
+                pass
         except Exception as e:
-            print(f"linje 60 {e}")
+            print(f"Line 96 Error: {e}")
 
 async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
@@ -102,8 +107,6 @@ async def handle_client(reader, writer):
         if input_password == PASSWORD:
             K = await server_handshake(reader, writer, addr)
             K = hash(K)
-
-            aesgcm = AESGCM(K)
 
             K = K.hex()
 
@@ -135,8 +138,8 @@ async def handle_client(reader, writer):
                     os.write(TUN, first_packet)
 
                     await asyncio.gather(
-                        socket_to_tun(reader,K,aesgcm),
-                        tun_to_socket(writer,K,aesgcm)
+                        socket_to_tun(reader,K),
+                        tun_to_socket(writer,K)
                     )
                     print("[DEBUG SERVER] handle_client: TUN loops er afsluttet.")
                     break 
@@ -155,7 +158,7 @@ async def unwrap_packet(reader,K,aesgcm):
     size = struct.unpack("!I", raw_len)[0]
 
     packet = await reader.readexactly(size)
-    packet = decrypt(packet,aesgcm)
+    packet = decrypt(packet,aesgcm,K)
     return packet
 
 async def main():
