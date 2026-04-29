@@ -9,6 +9,8 @@ from scapy.all import IP
 from wrap import wrap_packet
 from config import load_client_config
 from crypto import encrypt, decrypt, hash
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from src.setup import create_tun_interface, configure_client_routing
 
 HOST, PORT, MODE, PASSWORD = load_client_config()
 
@@ -26,12 +28,12 @@ async def handle_connection(reader, writer):
     try:
         K = await key_exchange(reader,writer)
         K = hash(K)
-
+        aesgcm = AESGCM(K)
         Virtual_IP = await reader.readline()
         Virtual_IP = Virtual_IP[:-1]
         
         while True:
-                await send_packets(reader, writer,K,Virtual_IP)
+                await send_packets(reader, writer,K,Virtual_IP,aesgcm)
     except ConnectionResetError:
         print(f"Connection lost (ConnectionResetError)")
     except Exception as e:
@@ -85,12 +87,8 @@ async def key_exchange(reader, writer):
     print("Key exchange was a sucess")
     return K
 
-async def send_packets(reader, writer, K,VIRTUAL_IP):
+async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
     print("Setting up TUN interface locally...")
-    TUNSETIFF = 0x400454ca
-    IFF_TUN = 0x0001
-    IFF_NO_PI = 0x1000
-
 
     cmd = ["ip", "route", "show", "default"]
     result = subprocess.check_output(cmd).decode('utf-8')
@@ -101,25 +99,10 @@ async def send_packets(reader, writer, K,VIRTUAL_IP):
     print(REAL_GATEWAY)
     print(REAL_INTERFACE)
 
-    tun = os.open("/dev/net/tun", os.O_RDWR)
-    ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
-    fcntl.ioctl(tun, TUNSETIFF, ifr)
+    tun = create_tun_interface()
 
     print("Configuring IP and routing on client...")
-    subprocess.run(["ip", "addr", "add", VIRTUAL_IP, "dev", "tun0"], check=True)
-    subprocess.run(["ip", "link", "set", "tun0", "up"], check=True)
-    time.sleep(1) 
-
-    # BRUG FORSKELLIGE LINJER AN PÅ OM DET ER GLOBAL ELLER LOKAL:
-    if MODE == "local":
-        subprocess.run(["ip", "route", "replace", HOST, "dev", REAL_INTERFACE], check=True) # Lokal
-    elif MODE == "global":   
-        subprocess.run(["ip", "route", "replace", HOST, "via", REAL_GATEWAY, "dev", REAL_INTERFACE], check=True) # Global
-
-    subprocess.run(["sudo", "sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"], check=True)
-
-    subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"], check=True)
-    subprocess.run(["ip", "route", "replace", "128.0.0.0/1", "dev", "tun0"], check=True)
+    configure_client_routing(VIRTUAL_IP, REAL_INTERFACE, MODE)
 
     loop = asyncio.get_running_loop()
 
@@ -134,10 +117,9 @@ async def send_packets(reader, writer, K,VIRTUAL_IP):
         while True:
             try:
                 packet = await loop.run_in_executor(None, os.read, tun, 2048)
-                wrapped = encrypt(K, packet)
+                wrapped = encrypt(K, packet, aesgcm)
                 wrapped = wrap_packet(wrapped)
                 writer.write(wrapped)
-                await writer.drain()
             except Exception as e:
                 print(f"Error: {e}")
                 break
@@ -145,7 +127,7 @@ async def send_packets(reader, writer, K,VIRTUAL_IP):
     async def write_tun():
         while True:
             try:
-                packet = await unwrap_packet(reader,K)
+                packet = await unwrap_packet(reader,K,aesgcm)
                 if not packet:
                     break
                 await loop.run_in_executor(None, os.write, tun, packet)
@@ -162,12 +144,12 @@ async def send_packets(reader, writer, K,VIRTUAL_IP):
     except asyncio.CancelledError:
         print("Closing TUN interface...")
 
-async def unwrap_packet(reader,K):
+async def unwrap_packet(reader,K,aesgcm):
     raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
 
     packet = await reader.readexactly(size)
-    packet = decrypt(K,packet)
+    packet = decrypt(K,packet,aesgcm)
     return packet
 
 async def main():

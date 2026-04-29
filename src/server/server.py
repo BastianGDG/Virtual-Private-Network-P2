@@ -11,15 +11,11 @@ from crypto import encrypt, decrypt, hash
 from config import load_server_config
 from server.peer import create_peer, flush_table, lookup
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from src.setup import create_tun_interface, configure_server_routing
 
 # Server configuration
 HOST = "0.0.0.0"
 PORT = 6789
-
-# TUN interface configuration
-TUNSETIFF = 0x400454ca
-IFF_TUN   = 0x0001
-IFF_NO_PI = 0x1000
 
 # Load server password from input or config file
 PASSWORD = load_server_config()
@@ -36,10 +32,7 @@ CLIENTS = {}
 
 # Set up TUN interface and network configuration
 print("[DEBUG SERVER] Sætter TUN interface op...")
-TUN = os.open("/dev/net/tun", os.O_RDWR)
-
-ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
-fcntl.ioctl(TUN, TUNSETIFF, ifr)
+TUN = create_tun_interface()
 
 print("[DEBUG SERVER] TUN interface oprettet: tun0")
 
@@ -49,13 +42,7 @@ result = subprocess.check_output(cmd).decode('utf-8')
 REAL_INTERFACE = result.split()[4]
 
 # Configure IP and routing on server
-subprocess.run(["ip","addr","add","10.0.0.254/24","dev","tun0"])
-subprocess.run(["ip","link","set","tun0","up"])
-subprocess.run(["sudo","iptables", "-t", "nat", "-A","POSTROUTING","-o",REAL_INTERFACE,"-j","MASQUERADE"])
-subprocess.run(["sudo","sysctl","-w","net.ipv4.ip_forward=1"])
-subprocess.run(["sudo","sysctl","-w","net.ipv6.conf.all.forwarding=1"])
-subprocess.run(["sudo","iptables","-A","FORWARD","-i","tun0","-o",REAL_INTERFACE,"-j","ACCEPT"])
-subprocess.run(["sudo","iptables","-A","FORWARD","-i",REAL_INTERFACE,"-o",REAL_INTERFACE,"-j","ACCEPT"])
+configure_server_routing(REAL_INTERFACE)
 print("[DEBUG SERVER] Netværkskonfiguration og iptables regler anvendt.")
 
 # Flush peer table on server start, to make sure no old peers are present
