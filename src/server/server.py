@@ -12,7 +12,7 @@ from ..config import load_server_config
 from .peer import create_peer, flush_table, lookup
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from ..setup import create_tun_interface, configure_server_routing
-
+from ..comms import server_handshake
 # Server configuration
 HOST = "0.0.0.0"
 PORT = 6789
@@ -100,7 +100,7 @@ async def handle_client(reader, writer):
 
     try:
         if input_password == PASSWORD:
-            K = await key_exchange(reader, writer, addr)
+            K = await server_handshake(reader, writer, addr)
             K = hash(K)
 
             aesgcm = AESGCM(K)
@@ -149,41 +149,6 @@ async def handle_client(reader, writer):
         print(f"[DEBUG SERVER] Lukker forbindelsen til {addr}")
         writer.close()
         await writer.wait_closed()
-
-async def key_exchange(reader, writer, addr):
-    print(f"[DEBUG SERVER] Starter key exchange med {addr}...")
-    q = number.getPrime(2048)
-    p = 2 * q + 1
-    g = random.randrange(2, p-1)
-    while pow(g,2,p) == 1 and pow(g,q,p) == 1:
-        g = random.randrange(2, p-1)
-
-    a = random.randint(50, 200)
-    A = pow(g,a,p)
-
-    p_send = str(p)+"\n"
-    g = str(g)+"\n"
-
-    writer.write(p_send.encode("utf-8"))
-    await writer.drain()
-
-    writer.write(g.encode("utf-8"))
-    await writer.drain()
-
-    B_bytes = await reader.readline()
-    if not B_bytes:
-        return 
-        
-    B = B_bytes.decode("utf-8")
-
-    A = str(A) + "\n"
-    writer.write(A.encode("utf-8"))
-    await writer.drain()
-
-    K = pow(int(B), a, p)
-    print(f"Key exchange was done succesfuly with {addr}")
-
-    return K
 
 async def unwrap_packet(reader,K,aesgcm):
     raw_len = await reader.readexactly(4)

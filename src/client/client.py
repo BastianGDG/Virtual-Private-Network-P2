@@ -11,6 +11,7 @@ from ..config import load_client_config
 from ..crypto import encrypt, decrypt, hash
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from ..setup import create_tun_interface, configure_client_routing
+from ..comms import client_handshake
 
 HOST, PORT, MODE, PASSWORD = load_client_config()
 
@@ -26,7 +27,7 @@ async def handle_connection(reader, writer):
     await writer.drain()
 
     try:
-        K = await key_exchange(reader,writer)
+        K = await client_handshake(reader,writer)
         K = hash(K)
         aesgcm = AESGCM(K)
         Virtual_IP = await reader.readline()
@@ -59,33 +60,6 @@ async def pingTest(reader, writer):
     else:
         print("[DEBUG CLIENT FEJL] Kunne ikke modtage pong!")
 '''
-
-async def key_exchange(reader, writer):
-    print("Starting key exchange...")
-    
-    p_bytes = await reader.readline()
-    p = p_bytes.decode("utf-8")
-    g_bytes = await reader.readline()
-    g = g_bytes.decode("utf-8")
-
-    p = int(p)
-    g = int(g)
-    b = random.randint(50,200)
-    B = pow(g, b, p)
-
-    B = str(B) + "\n"
-
-    writer.write(B.encode("utf-8"))
-    await writer.drain()
-    
-    A_bytes = await reader.readline()
-    A = A_bytes.decode("utf-8")
-    A = int(A)
-
-    K = pow(A, b, p)
-    
-    print("Key exchange was a sucess")
-    return K
 
 async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
     print("Setting up TUN interface locally...")
