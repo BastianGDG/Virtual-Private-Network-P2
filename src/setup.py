@@ -4,8 +4,6 @@ import struct
 import subprocess
 import time
 
-from server.server import REAL_INTERFACE
-
 # Constants for TUN/TAP
 TUNSETIFF = 0x400454ca
 IFF_TUN   = 0x0001

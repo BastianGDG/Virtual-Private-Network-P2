@@ -6,10 +6,10 @@ import struct
 import fcntl
 from scapy.all import IP
 import subprocess
-from wrap import wrap_packet
-from crypto import encrypt, decrypt, hash
-from config import load_server_config
-from server.peer import create_peer, flush_table, lookup
+from .wrap import wrap_packet
+from .crypto import encrypt, decrypt, hash
+from .config import load_server_config
+from .server.peer import create_peer, flush_table, lookup
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 # Server configuration

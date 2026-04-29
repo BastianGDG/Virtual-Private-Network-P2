@@ -6,11 +6,11 @@ import struct
 import subprocess
 import asyncio
 from scapy.all import IP
-from src.wrap import wrap_packet
-from src.config import load_client_config
-from src.crypto import encrypt, decrypt, hash
+from ..wrap import wrap_packet
+from ..config import load_client_config
+from ..crypto import encrypt, decrypt, hash
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from src.setup import create_tun_interface, configure_client_routing
+from ..setup import create_tun_interface, configure_client_routing
 
 HOST, PORT, MODE, PASSWORD = load_client_config()
 
