@@ -1,6 +1,6 @@
 import random
 from Crypto.Util import number
-from crypto import decrypt
+from .crypto import decrypt
 import struct
 
 # Function for servers side of handshake
@@ -8,7 +8,7 @@ async def server_handshake(reader, writer, addr):
     print(f"[DEBUG SERVER] Starter key exchange med {addr}...")
     # Generating prime number for use in encryption
     q = number.getPrime(2048)
-    # Makes sure that prime number is "strong"
+    # Make sure that prime number is "strong"
     p = 2 * q + 1
 
     # Generate random valid "generator" number

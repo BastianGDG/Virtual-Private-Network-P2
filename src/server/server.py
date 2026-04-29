@@ -18,7 +18,6 @@ PORT = 6789
 PASSWORD = load_server_config()
 
 # If password was inputted, hash it, otherwise PASSWORD will be None and the server will not require authentication
-
 if PASSWORD:
     PASSWORD = hash(PASSWORD)
 
@@ -28,14 +27,14 @@ CLIENT_COUNT = 0
 CLIENTS = {}
 
 # Set up TUN interface and network configuration
-print("[DEBUG SERVER] Sætter TUN interface op...")
+print("[DEBUG SERVER] Setting up TUN interface...")
 TUN = create_tun_interface()
 
-print("[DEBUG SERVER] TUN interface oprettet: tun0")
+print("[DEBUG SERVER] TUN interface created: tun0")
 
 # Configure IP and routing on server
 configure_server_routing()
-print("[DEBUG SERVER] Netværkskonfiguration og iptables regler anvendt.")
+print("[DEBUG SERVER] Network configuration and iptables rules applied.")
 
 # Flush peer table on server start, to make sure no old peers are present
 flush_table()
@@ -116,7 +115,7 @@ async def handle_client(reader, writer):
             while True:
                 data = await reader.read(2048)
                 if not data:
-                    print("[DEBUG SERVER] handle_client: Modtog 0 bytes, client har lukket forbindelsen.")
+                    print("[DEBUG SERVER] handle_client: received empty data, closing connection.")
                     break
                     
                 elif len(data) > 4:
@@ -129,15 +128,15 @@ async def handle_client(reader, writer):
                         socket_to_tun(reader,K),
                         tun_to_socket(writer,K)
                     )
-                    print("[DEBUG SERVER] handle_client: TUN loops er afsluttet.")
+                    print("[DEBUG SERVER] handle_client: TUN Loop ended, closing connection.")
                     break 
                 else:
-                    print(f"[DEBUG SERVER] handle_client: Modtog meget kort/ukendt data: {data}")
+                    print(f"[DEBUG SERVER] handle_client: received very short/unknown data: {data}")
                 
     except Exception as e:
-        print(f"[DEBUG SERVER FEJL] i handle_client: {e}")
+        print(f"[DEBUG SERVER FAILED] in handle_client: {e}")
     finally:
-        print(f"[DEBUG SERVER] Lukker forbindelsen til {addr}")
+        print(f"[DEBUG SERVER] Closing connection to {addr}")
         writer.close()
         await writer.wait_closed()
 

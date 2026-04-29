@@ -57,16 +57,6 @@ async def pingTest(reader, writer):
 
 async def send_packets(reader, writer,K,VIRTUAL_IP):
     print("Setting up TUN interface locally...")
-
-    cmd = ["ip", "route", "show", "default"]
-    result = subprocess.check_output(cmd).decode('utf-8')
-
-    REAL_GATEWAY = result.split()[2]
-    REAL_INTERFACE = result.split()[4]
-
-    print(REAL_GATEWAY)
-    print(REAL_INTERFACE)
-
     tun = create_tun_interface()
 
     print("Configuring IP and routing on client...")
