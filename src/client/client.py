@@ -102,7 +102,7 @@ async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
     tun = create_tun_interface()
 
     print("Configuring IP and routing on client...")
-    configure_client_routing(VIRTUAL_IP, REAL_INTERFACE, MODE)
+    configure_client_routing(VIRTUAL_IP, HOST, MODE)
 
     loop = asyncio.get_running_loop()
 
@@ -117,7 +117,7 @@ async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
         while True:
             try:
                 packet = await loop.run_in_executor(None, os.read, tun, 2048)
-                wrapped = encrypt(K, packet, aesgcm)
+                wrapped = encrypt(packet, aesgcm)
                 wrapped = wrap_packet(wrapped)
                 writer.write(wrapped)
             except Exception as e:
@@ -127,16 +127,17 @@ async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
     async def write_tun():
         while True:
             try:
-                packet = await unwrap_packet(reader,K,aesgcm)
+                packet = await unwrap_packet(reader,aesgcm)
                 if not packet:
                     break
                 await loop.run_in_executor(None, os.write, tun, packet)
-                try: 
-                    ip = IP(packet[:20]) 
-                    print(f"Packet-info: {ip.src} -> {ip.dst}")
-                except: 
-                    pass
+               # try: 
+                     # ip = IP(packet[:20]) 
+                    # print(f"Packet-info: {ip.src} -> {ip.dst}")
+               # except: 
+                   # pass
             except Exception as e:
+                print(f"Error: {e}")
                 break
 
     try:
@@ -144,12 +145,12 @@ async def send_packets(reader, writer, K,VIRTUAL_IP,aesgcm):
     except asyncio.CancelledError:
         print("Closing TUN interface...")
 
-async def unwrap_packet(reader,K,aesgcm):
+async def unwrap_packet(reader,aesgcm):
     raw_len = await reader.readexactly(4)
     size = struct.unpack("!I", raw_len)[0]
 
     packet = await reader.readexactly(size)
-    packet = decrypt(K,packet,aesgcm)
+    packet = decrypt(packet,aesgcm)
     return packet
 
 async def main():

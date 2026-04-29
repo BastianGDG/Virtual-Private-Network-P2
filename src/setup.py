@@ -27,7 +27,7 @@ def configure_client_routing(virtual_ip, host_ip, mode):
     # Bring interface up
     subprocess.run(["ip", "addr", "add", virtual_ip, "dev", "tun0"], check=True)
     subprocess.run(["ip", "link", "set", "tun0", "up"], check=True)
-    # time.sleep(1) 
+    time.sleep(1) 
 
     # Route VPN server traffic through the real physical gateway so we don't loop
     if mode == "local":
