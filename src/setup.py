@@ -40,7 +40,12 @@ def configure_client_routing(virtual_ip, host_ip, mode):
     subprocess.run(["ip", "route", "replace", "0.0.0.0/1", "dev", "tun0"], check=True)
     subprocess.run(["ip", "route", "replace", "128.0.0.0/1", "dev", "tun0"], check=True)
 
-def configure_server_routing(real_interface):
+def configure_server_routing():
+    cmd = ["ip", "route", "show", "default"]
+    result = subprocess.check_output(cmd).decode('utf-8')
+        
+    real_interface = result.split()[4]
+
     """Configures iptables and IP forwarding for the server."""
     subprocess.run(["ip", "addr", "add", "10.0.0.254/24", "dev", "tun0"])
     subprocess.run(["ip", "link", "set", "tun0", "up"])

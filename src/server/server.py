@@ -1,19 +1,14 @@
-import random
 from Crypto.Util import number
 import asyncio
 import os
 import struct
-import fcntl
 import socket
 from scapy.all import IP
-import subprocess
-from ..wrap import wrap_packet
-from ..crypto import encrypt, decrypt, hash
+from ..crypto import encrypt, hash
 from ..config import load_server_config
 from .peer import create_peer, flush_table, lookup
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from ..setup import create_tun_interface, configure_server_routing
-from ..comms import server_handshake
+from ..comms import server_handshake, wrap_packet, unwrap_packet
 
 # Server configuration
 HOST = "0.0.0.0"
@@ -38,13 +33,8 @@ TUN = create_tun_interface()
 
 print("[DEBUG SERVER] TUN interface oprettet: tun0")
 
-cmd = ["ip", "route", "show", "default"]
-result = subprocess.check_output(cmd).decode('utf-8')
-    
-REAL_INTERFACE = result.split()[4]
-
 # Configure IP and routing on server
-configure_server_routing(REAL_INTERFACE)
+configure_server_routing()
 print("[DEBUG SERVER] Netværkskonfiguration og iptables regler anvendt.")
 
 # Flush peer table on server start, to make sure no old peers are present
@@ -58,10 +48,10 @@ async def socket_to_tun(reader,K):
                 break
             os.write(TUN, packet)
         except asyncio.IncompleteReadError as e:
-            print(f"linje 44 {e}")
+            print(f"Error: {e}")
             break
         except Exception as e:
-            print(f"linje 47 {e}")
+            print(f"Error: {e}")
             break
 
 async def tun_to_socket(writer,K):
@@ -85,7 +75,7 @@ async def tun_to_socket(writer,K):
                 K = bytes.fromhex(K)
 
                 wrapped = encrypt(packet,K)
-                wrapped = wrap_packet(wrapped)
+                wrapped = await wrap_packet(wrapped)
                 writer.write(wrapped)
             else:
                 pass
@@ -150,14 +140,6 @@ async def handle_client(reader, writer):
         print(f"[DEBUG SERVER] Lukker forbindelsen til {addr}")
         writer.close()
         await writer.wait_closed()
-
-async def unwrap_packet(reader,K):
-    raw_len = await reader.readexactly(4)
-    size = struct.unpack("!I", raw_len)[0]
-
-    packet = await reader.readexactly(size)
-    packet = decrypt(packet,K)
-    return packet
 
 async def main():
     server = await asyncio.start_server(handle_client, HOST, PORT)

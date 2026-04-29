@@ -1,5 +1,7 @@
 import random
 from Crypto.Util import number
+from crypto import decrypt
+import struct
 
 # Function for servers side of handshake
 async def server_handshake(reader, writer, addr):
@@ -80,3 +82,15 @@ async def client_handshake(reader,writer):
     
     print("Key exchange was a sucess")
     return K
+
+async def unwrap_packet(reader,K):
+    raw_len = await reader.readexactly(4)
+    size = struct.unpack("!I", raw_len)[0]
+
+    packet = await reader.readexactly(size)
+    packet = decrypt(packet,K)
+    return packet
+
+async def wrap_packet(packet_bytes):
+    length = len(packet_bytes)
+    return struct.pack("!I", length) + packet_bytes

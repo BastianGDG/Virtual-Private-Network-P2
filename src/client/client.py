@@ -1,17 +1,11 @@
-import random
-import time
 import os
-import fcntl
-import struct
 import subprocess
 import asyncio
 from scapy.all import IP
-from ..wrap import wrap_packet
 from ..config import load_client_config
-from ..crypto import encrypt, decrypt, hash
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from ..crypto import encrypt, hash
 from ..setup import create_tun_interface, configure_client_routing
-from ..comms import client_handshake
+from ..comms import client_handshake, unwrap_packet, wrap_packet
 
 HOST, PORT, MODE, PASSWORD = load_client_config()
 
@@ -84,7 +78,7 @@ async def send_packets(reader, writer,K,VIRTUAL_IP):
         print("Reading from TUN interface...")
 
         # Client needs to send an initalizing unencrypted packet to server, to tell that client is ready
-        init_packet = wrap_packet(await loop.run_in_executor(None, os.read, tun, 2048))
+        init_packet = await wrap_packet(await loop.run_in_executor(None, os.read, tun, 2048))
         writer.write(init_packet)
         await writer.drain()
 
@@ -92,7 +86,7 @@ async def send_packets(reader, writer,K,VIRTUAL_IP):
             try:
                 packet = await loop.run_in_executor(None, os.read, tun, 2048)
                 wrapped = encrypt(packet,K)
-                wrapped = wrap_packet(wrapped)
+                wrapped = await wrap_packet(wrapped)
                 writer.write(wrapped)
             except Exception as e:
                 print(f"Error: {e}")
@@ -118,14 +112,6 @@ async def send_packets(reader, writer,K,VIRTUAL_IP):
         await asyncio.gather(read_tun(), write_tun())
     except asyncio.CancelledError:
         print("Closing TUN interface...")
-
-async def unwrap_packet(reader,K):
-    raw_len = await reader.readexactly(4)
-    size = struct.unpack("!I", raw_len)[0]
-
-    packet = await reader.readexactly(size)
-    packet = decrypt(packet,K)
-    return packet
 
 async def main():
     print("Starting main...")

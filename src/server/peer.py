@@ -44,7 +44,7 @@ def update_table(peer):
         pass
     
     # Check if the current ID of the item to be indexed, already exists
-    for item in range(len(data)-1):
+    for item in range(len(data)):
         if peer["ID"] == data[item]["ID"]:
             data.pop(item)
 

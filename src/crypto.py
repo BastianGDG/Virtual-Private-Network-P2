@@ -11,23 +11,31 @@ def hash(key):
         key = key.encode()
 
     key = hashlib.sha256(key).digest()
-    
     return key
 
 def encrypt(data,K):
     try:
+
         aesgcm = AESGCM(K)
+        #Generate a random nonce
         nonce = os.urandom(12) 
+        #encrypts the data
         ciphertext = aesgcm.encrypt(nonce, data, None)
         
+        # returns nonce and ciphertext together
         return nonce + ciphertext
     except Exception as e:
-        print(e)
+        print(f"Error encrypting: {e}")
         return None
 
 def decrypt(ciphertext,K):
-    nonce = ciphertext[:12]
-    encrypted_payload = ciphertext[12:]
+    try:
+        # Seperates nonce and ciphertext from recieved packet
+        nonce = ciphertext[:12]
+        encrypted_payload = ciphertext[12:]
 
-    aesgcm = AESGCM(K)
-    return aesgcm.decrypt(nonce, encrypted_payload, None)
+        aesgcm = AESGCM(K)
+        return aesgcm.decrypt(nonce, encrypted_payload, None)
+    except Exception as e:
+        print(f"Error decrypting: {e}")
+        return None
