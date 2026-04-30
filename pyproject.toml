@@ -5,7 +5,6 @@ description = "VPN client and server"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-	"scapy",
 	"pycryptodome",
 	"cryptography>=46.0.7",
 ]

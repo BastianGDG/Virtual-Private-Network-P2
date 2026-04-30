@@ -5,7 +5,7 @@ import os
 acc = 0
 
 for i in range(1000):
-    key = AESGCM.generate_key(bit_length=256)
+    key = AESGCM.generate_key(bit_length=128)
     aesgcm = AESGCM(key)
 
     data = b"hejsa det her er secret stuff"
@@ -20,4 +20,4 @@ for i in range(1000):
     
     acc = acc + timer
 
-print(f"Det tog: {acc/100} sekunder")
+print(f"Det tog: {acc/1000} sekunder")

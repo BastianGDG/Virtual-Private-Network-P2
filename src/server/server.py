@@ -1,9 +1,7 @@
-from Crypto.Util import number
 import asyncio
 import os
 import struct
 import socket
-from scapy.all import IP
 from ..crypto import encrypt, hash
 from ..config import load_server_config
 from .peer import create_peer, flush_table, lookup

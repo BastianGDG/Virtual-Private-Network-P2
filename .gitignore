@@ -35,6 +35,10 @@ htmlcov/
 # UV
 .uv/
 
+# Runtime peer tables
+config/peer.json
+src/config/peer.json
+
 # IDEs and editor files
 .vscode
 .vscode/

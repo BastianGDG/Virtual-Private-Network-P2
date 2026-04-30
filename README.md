@@ -1,45 +1,33 @@
-## VPN Project
-
-Super simple guide to run the project.
+# VPN Project
 
 ## Requirements
 
 - Python 3.12+
-- uv installed
-- Linux (TUN + networking commands)
+- uv
+- Linux with TUN support
 
-## Setup
+## Install
 
 ```bash
 uv sync
 ```
 
-## Run server
+## Run
+
+Start the server from the project root:
 
 ```bash
-sudo -E uv run python src/server.py --password <PASSWORD>
+sudo -E uv run python -m src.server.server --password <PASSWORD>
 ```
 
-Example:
+Start the client from the project root:
 
 ```bash
-sudo -E uv run python src/server.py --password hello
-```
-
-## Run client
-
-```bash
-sudo -E uv run python src/client.py --ip <SERVER_IP> --port 6789 --mode <local / global> --password <PASSWORD>
-```
-
-Example:
-
-```bash
-sudo -E uv run python src/client.py --ip 192.168.1.170 --port 6789 --mode local --password hello
+sudo -E uv run python -m src.client.client --ip <SERVER_IP> --port 6789 --mode <local|global> --password <PASSWORD>
 ```
 
 ## Notes
 
 - Start the server first.
-- Server and client must use the same password.
-- Switch between local and global mode, depending on if you want to connect to a local or remote network
+- Use the same password on both sides.
+- Use `local` for a local network and `global` for a remote network.

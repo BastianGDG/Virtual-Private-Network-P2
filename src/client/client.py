@@ -1,7 +1,5 @@
-import os
-import subprocess
 import asyncio
-from scapy.all import IP
+import os
 from ..config import load_client_config
 from ..crypto import encrypt, hash
 from ..setup import create_tun_interface, configure_client_routing
