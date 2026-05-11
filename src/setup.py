@@ -10,14 +10,13 @@ IFF_TUN   = 0x0001
 IFF_NO_PI = 0x1000
 
 def create_tun_interface(name=b"tun0"):
-    """Creates and returns a file descriptor for a TUN interface."""
+    # Creates and returns a file descriptor for a TUN interface
     tun = os.open("/dev/net/tun", os.O_RDWR)
     ifr = struct.pack("16sH", name, IFF_TUN | IFF_NO_PI)
     fcntl.ioctl(tun, TUNSETIFF, ifr)
     return tun
 
 def configure_client_routing(virtual_ip, host_ip, mode):
-    """Configures the local routing table for the client."""
     # Get current gateway and interface
     cmd = ["ip", "route", "show", "default"]
     result = subprocess.check_output(cmd).decode('utf-8')
