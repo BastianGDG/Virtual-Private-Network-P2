@@ -5,6 +5,8 @@ from ..crypto import encrypt, hash
 from ..setup import create_tun_interface, configure_client_routing
 from ..comms import client_handshake, unwrap_packet, wrap_packet
 
+
+# Load constans from inputted config
 HOST, PORT, MODE, PASSWORD = load_client_config()
 
 print(f"Client configuration: HOST={HOST}, PORT={PORT}, MODE={MODE}, PASSWORD={'*' * len(PASSWORD)}")
@@ -12,25 +14,34 @@ print(f"Client configuration: HOST={HOST}, PORT={PORT}, MODE={MODE}, PASSWORD={'
 async def handle_connection(reader, writer):
     print(f"Connected to server at: {HOST}:{PORT}")
 
+    # Grab password and convert to string, add line break so server knows when to stop reading
     global PASSWORD
     PASSWORD = str(PASSWORD) + "\n"
 
+    # Send password to server to be authenticated
     writer.write(PASSWORD.encode("utf-8"))
     await writer.drain()
 
     try:
+        # Get key from external handshake function    
         K = await client_handshake(reader,writer)
         K = hash(K)
 
+        # Read the VirtualIP given by the server
         Virtual_IP = await reader.readline()
         Virtual_IP = Virtual_IP[:-1]
         
+        # Go inside while loop that sends and recieves packets
         while True:
                 await send_packets(reader, writer,K,Virtual_IP)
+
     except ConnectionResetError:
         print(f"Connection lost (ConnectionResetError)")
+
     except Exception as e:
          print(f"Unexpected error: {e}")
+
+    # If while loop is broken, connection ends
     finally:
         print("Closing connection...")
         writer.close()
@@ -48,18 +59,21 @@ async def pingTest(reader, writer):
     if pong:
         end = time.perf_counter()
         ping = int((end - start) * 1000)
-        print(f"[DEBUG CLIENT] Modtog: {pong}. Din ping er {ping} ms")
+        print(f"[DEBUG CLIENT] Got: {pong}. Your ping is {ping} ms")
     else:
-        print("[DEBUG CLIENT FEJL] Kunne ikke modtage pong!")
+        print("[DEBUG CLIENT ERROR] Could not recieve pong")
 '''
 
 async def send_packets(reader, writer,K,VIRTUAL_IP):
+    # Create tun interface for client
     print("Setting up TUN interface locally...")
     tun = create_tun_interface()
 
+    # Apply routing rules and other needed commands
     print("Configuring IP and routing on client...")
     configure_client_routing(VIRTUAL_IP, HOST, MODE)
 
+    # Get current event loop for this function
     loop = asyncio.get_running_loop()
 
     async def read_tun():

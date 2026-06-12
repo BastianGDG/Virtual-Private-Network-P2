@@ -4,6 +4,7 @@ import hashlib
 
 
 def hash(key):
+    # Try to convert key to binary, if it fails it's likely a string
     try:
         # Convert a numeral key to binary
         length = (key.bit_length() + 7) // 8
@@ -12,6 +13,7 @@ def hash(key):
         # Convert a string key to binary
         key = key.encode()
 
+    # Hash the key
     key = hashlib.sha256(key).digest()
     return key
 
@@ -26,6 +28,7 @@ def encrypt(data,K):
         
         # return nonce and ciphertext together
         return nonce + ciphertext
+    
     except Exception as e:
         print(f"Error encrypting: {e}")
         return None

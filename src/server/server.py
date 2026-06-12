@@ -22,6 +22,7 @@ if PASSWORD:
 # Global variable to keep track of connected clients, this is used to give unique IDs to clients as they connect
 CLIENT_COUNT = 0
 
+# Tuple to keep track of Client writers
 CLIENTS = {}
 
 # Set up TUN interface and network configuration

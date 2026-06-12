@@ -16,7 +16,6 @@ async def server_handshake(reader, writer, addr):
     while pow(g,2,p) == 1 and pow(g,q,p) == 1:
         g = random.randrange(2, p-1)
 
-
     # Generate random private key and calculate public key
     a = random.randint(50, 200)
     A = pow(g,a,p)
@@ -84,13 +83,22 @@ async def client_handshake(reader,writer):
     return K
 
 async def unwrap_packet(reader,K):
+    # Read exactly the first 4 bytes, that have been reserved to describe the length of the payload
     raw_len = await reader.readexactly(4)
+
+    # Unpack said header to be parsed as an integer
     size = struct.unpack("!I", raw_len)[0]
 
+    # With the given paylaod size we know exactly how much to read
     packet = await reader.readexactly(size)
+
+    # Send packet to be decrypted
     packet = decrypt(packet,K)
     return packet
 
 async def wrap_packet(packet_bytes):
+    # Take the length of the packet
     length = len(packet_bytes)
+
+    # Make a new packet with the added length header at the begninning, ! stands for big endian (network order), I stands for unsigned int
     return struct.pack("!I", length) + packet_bytes
